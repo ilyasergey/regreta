@@ -115,22 +115,31 @@ def baseOrder (g : CFG) (excludeTrivial : Bool := true) : OrderMap :=
 /-! ### Cycles in the symbol order -/
 
 /--
-`HighToLow(G, O_p)` (Section 3.1.3).  A pair of symbols `(s_l, s_h)` is reported when the
-production of `s_h` mentions the left-hand side nonterminal of `s_l` on its right-hand
-side while `s_h` sits at a strictly higher order than `s_l`, so that `s_l` must be allowed
-to appear *below* `s_h` even though the learned hierarchy places it above.  The reported
-orders are the highest order of `s_h` and the lowest order of `s_l`.
+`HighToLow(G, O_p)` (Section 3.1.3).  A pair of symbols `(s_l, s_h)` is reported when
+
+* `s_h` sits at a strictly higher order than `s_l` in the *base* precedence order `O_bp`,
+  and
+* the production of `s_h` mentions the left-hand side nonterminal of `s_l` on its
+  right-hand side,
+
+so that `s_l` can appear deeper in a parse tree than `s_h` even though the order places it
+above.  Such a cycle in the symbol order has to be reintroduced into the learned
+automaton.  The orders reported alongside the symbols are the *highest* order of `s_h` and
+the *lowest* order of `s_l` in the learned order `O_p`.
+
+Note that the comparison is against `O_bp` and the reported orders come from `O_p`; using
+`O_p` for the comparison as well would report every ordinary nesting of one symbol under
+another, not just the cycles.
 -/
-def highToLow (g : CFG) (op : OrderMap) : List ((Sym × Nat) × (Sym × Nat)) :=
+def highToLow (g : CFG) (obp op : OrderMap) : List ((Sym × Nat) × (Sym × Nat)) :=
   g.rankedProds.flatMap fun sh =>
     g.rankedProds.filterMap fun sl =>
-      let ohs := op.ordersOf sh.1
-      let ols := op.ordersOf sl.1
-      match ohs.max?, ols.min? with
-      | some oh, some ol =>
-          if ol < oh ∧ sh.2.2.contains (.nt sl.2.1) then some ((sl.1, ol), (sh.1, oh))
+      match (obp.ordersOf sh.1).min?, (obp.ordersOf sl.1).min?,
+            (op.ordersOf sh.1).max?, (op.ordersOf sl.1).min? with
+      | some bh, some bl, some oh, some ol =>
+          if bl < bh ∧ sh.2.2.contains (.nt sl.2.1) then some ((sl.1, ol), (sh.1, oh))
           else none
-      | _, _ => none
+      | _, _, _, _ => none
 
 end CFG
 

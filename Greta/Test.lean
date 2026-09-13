@@ -105,19 +105,19 @@ def testRunningExample (r : Report) : IO Report := do
   r ← check r "A_g accepts at the start nonterminal" (a.finals == ["stmt"])
   r ← check r "A_g has one transition per production"
         (a.trans.length == g.prods.length)
-  r ← check r "base precedence order matches Figure of Section 2.3.1"
+  r ← check r "the base precedence order matches the set printed in Section 2.3.1"
         (orderIds (g.baseOrder) == expectedBaseOrder)
         s!"got {orderIds (g.baseOrder)}"
   r ← check r "IDENT is the only trivial symbol"
         ((g.trivialSyms.map Sym.id) == [4])
         s!"got {g.trivialSyms.map Sym.id}"
-  -- Theorem A.10 on concrete trees.
+  -- The translation theorem on concrete trees.
   let identTree := Tree.node (sym! g 4) [.leaf "IDENT"]
   let declTree := Tree.node (sym! g 3)
     [.leaf "TINT", identTree, .leaf "EQ", Tree.node (sym! g 7) [.leaf "INT"]]
   let stmtTree := Tree.node (sym! g 0) [declTree, .leaf "SEMI"]
-  r ← check r "the parse tree of Figure 15 is accepted" (a.langB stmtTree)
-  r ← check r "Theorem A.10 agrees on that tree"
+  r ← check r "a complete parse tree is accepted" (a.langB stmtTree)
+  r ← check r "the translation theorem agrees on that tree"
         (a.langB stmtTree == g.isParseTree stmtTree)
   r ← check r "an incomplete tree is rejected" (!(a.langB declTree))
   let bogus := Tree.node (sym! g 0) [declTree, .leaf "ELSE"]
@@ -145,25 +145,79 @@ def testIntersectionAgainstProduct (r : Report) (label : String)
           s!"{d.onlyLeft.length} missing, {d.onlyRight.length} extra, {d.checked} checked"
   return r
 
+/-- The tree examples of Figure 3 that the user did *not* select. -/
+def runningExampleNeg : List TreeExample :=
+  let g := runningExample
+  [ { top := sym! g 5, bot := sym! g 5, idx := 2 }    -- (PLUS,3) as a right child
+  , { top := sym! g 6, bot := sym! g 6, idx := 2 }    -- (STAR,3) as a right child
+  , { top := sym! g 6, bot := sym! g 5, idx := 0 }    -- (STAR,3) above (PLUS,3)
+  , { top := sym! g 2, bot := sym! g 1, idx := 3 } ]  -- (IF,6) above (IF,4)
+
+/-- `O_p` as printed in Section 2.3.2, by production identifier. -/
+def expectedOp : List (Nat × List Int) :=
+  [ (0, [0, 1])              -- (SEMI,2), (IF,4)
+  , (1, [0, 2])              -- (SEMI,2), (IF,6)
+  , (2, [3, 5, 7, 8, 9])     -- (TINT,4), (PLUS,3), (INT,1), ((),3), (δ,1)
+  , (3, [3, 6, 7, 8, 9])     -- (TINT,4), (STAR,3), (INT,1), ((),3), (δ,1)
+  , (4, [3, 7, 8, 9]) ]      -- (TINT,4), (INT,1), ((),3), (δ,1)
+
+/-- One transition, rendered compactly so that it can be read against Figure 7. -/
+def shapeOf (tr : Transition String) : String :=
+  tr.target ++ " <" ++ toString tr.sym.id ++
+    String.join (tr.rhs.map fun
+      | .term a  => " " ++ a
+      | .state q => " [" ++ q ++ "]")
+
+/--
+`A_r` as printed in Figure 7.  The `(TINT,4)` row at `e2` is printed there as
+`TINT e2 EQ e2`; footnote 3 of Section 3.1.3 says the δ-generator leaves the states of
+trivial symbols alone, which is what the rows at `e3` and `e4` do, so we expect
+`TINT ident EQ e2`.  See docs/divergences.md.
+-/
+def expectedAr : List String :=
+  [ "e0 <1 IF [e0] THEN [e0]"
+  , "e0 <0 [e0] SEMI"
+  , "e0 <-1 [e1]"
+  , "e1 <2 IF [e1] THEN [e1] ELSE [e1]"
+  , "e1 <0 [e1] SEMI"
+  , "e1 <-1 [e2]"
+  , "e2 <5 [e2] PLUS [e3]"
+  , "e2 <3 TINT [ident] EQ [e2]"
+  , "e2 <7 INT"
+  , "e2 <8 LPAREN [e2] RPAREN"
+  , "e2 <9 [ident]"
+  , "e2 <-1 [e3]"
+  , "e3 <6 [e3] STAR [e4]"
+  , "e3 <3 TINT [ident] EQ [e3]"
+  , "e3 <7 INT"
+  , "e3 <8 LPAREN [e3] RPAREN"
+  , "e3 <9 [ident]"
+  , "e3 <-1 [e4]"
+  , "e4 <3 TINT [ident] EQ [e4]"
+  , "e4 <7 INT"
+  , "e4 <8 LPAREN [e4] RPAREN"
+  , "e4 <9 [ident]"
+  , "ident <4 IDENT" ]
+
 def testRunningExampleIntersection (r : Report) : IO Report := do
   let g := runningExample
-  let neg : List TreeExample :=
-    [ { top := sym! g 5, bot := sym! g 5, idx := 2 }    -- (PLUS,3) not right-associative
-    , { top := sym! g 6, bot := sym! g 6, idx := 2 }    -- (STAR,3) not right-associative
-    , { top := sym! g 6, bot := sym! g 5, idx := 0 }    -- (STAR,3) not above (PLUS,3)
-    , { top := sym! g 1, bot := sym! g 2, idx := 3 } ]  -- (IF,4) not above (IF,6)
+  let neg := runningExampleNeg
   let obp := g.baseOrder
   let mto := toMapOf obp neg
   let (oa, op) := learnOaOp g neg mto
   let ar := genTA g oa op
+  let arShape := (ar.trans.map shapeOf).mergeSort (· ≤ ·)
   let mut r := r
   r ← check r "the learned O_a records the two associativity conflicts"
         ((oa.map fun p => (p.1.id, p.2)) == [(5, 2), (6, 2)])
         s!"got {oa.map fun p => (p.1.id, p.2)}"
+  r ← check r "the learned O_p matches the set printed in Section 2.3.2"
+        (orderIds op == expectedOp)
+        s!"got {orderIds op}"
+  r ← check r "A_r matches Figure 7 transition for transition"
+        (arShape == expectedAr.mergeSort (· ≤ ·))
+        s!"{ar.trans.length} transitions, expected {expectedAr.length}"
   r ← check r "A_r accepts at e0" (ar.finals == ["e0"])
-  r ← check r "A_r has an ε-transition per level gap"
-        (ar.epsEdges.length == op.maxOrder)
-        s!"{ar.epsEdges.length} ε-edges, max order {op.maxOrder}"
   testIntersectionAgainstProduct r "running example" ar g.toTA 4
 
 def testRandom (r : Report) (rounds : Nat) : IO Report := do

@@ -34,6 +34,7 @@ def usage : String :=
 
   greta cfg2ta GRAMMAR                  print A_g, the tree automaton of a CFG
   greta obp GRAMMAR [--keep-trivial]    print the base precedence order O_bp
+  greta op GRAMMAR EXAMPLES             print the learned precedence order O_p
   greta genta GRAMMAR EXAMPLES          print A_r, the automaton learned from examples
   greta intersect TA1 TA2 [FLAGS]       run Algorithm 3.3 (IntersectTA)
   greta product TA1 TA2                 run the verified textbook product
@@ -70,6 +71,14 @@ def main (args : List String) : IO UInt32 := do
   | "obp" :: p :: rest => do
       let g ← readCFG p
       IO.println (orderMapToString (g.baseOrder (!rest.contains "--keep-trivial"))); return 0
+  | "op" :: pg :: pe :: rest => do
+      let g ← readCFG pg
+      match parseExamples g (← IO.FS.readFile pe) with
+      | .error e => throw (IO.userError e)
+      | .ok neg =>
+          let keep := !rest.contains "--keep-trivial"
+          let obp := g.baseOrder keep
+          IO.println (orderMapToString (learnOaOp g neg (toMapOf obp neg) keep).2); return 0
   | "genta" :: pg :: pe :: rest => do
       let g ← readCFG pg
       match parseExamples g (← IO.FS.readFile pe) with

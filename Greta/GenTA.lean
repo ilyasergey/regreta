@@ -36,6 +36,7 @@ def deltaGen (g : CFG) (trivNts : List Nonterminal) (target : String) (fill : Na
 parsing preferences described by `oa` and `op`.
 -/
 def genTA (g : CFG) (oa : Oa) (op : OrderMap) (excludeTrivial : Bool := true) : TA String :=
+  let obp := g.baseOrder excludeTrivial
   let m := op.maxOrder
   let ordStates := (List.range (m + 1)).map stateName
   let triv := if excludeTrivial then g.trivialSyms else []
@@ -55,7 +56,7 @@ def genTA (g : CFG) (oa : Oa) (op : OrderMap) (excludeTrivial : Bool := true) : 
   let epsTrans : List (Transition String) := (List.range m).map fun i =>
     ⟨stateName i, epsSym, [.state (stateName (i + 1))]⟩
   -- Cycle-restoring transitions.
-  let cycTrans : List (Transition String) := (g.highToLow op).filterMap fun pr =>
+  let cycTrans : List (Transition String) := (g.highToLow obp op).filterMap fun pr =>
     deltaGen g trivNts (stateName pr.2.2) (fun _ => stateName pr.1.2) pr.2.1
   { states    := ordStates ++ trivStates
     alphabet  := (op.symbols ++ triv ++ [epsSym]).dedup

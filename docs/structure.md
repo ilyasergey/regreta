@@ -1,8 +1,12 @@
 # The Lean development
 
 This note describes how the formalisation is laid out and why it is built the way it is.
-It assumes the paper (Sections 2–3 and Appendices A–B of the extended version) and some
-familiarity with Lean 4.
+It assumes Sections 2 and 3 of the paper and some familiarity with Lean 4.
+
+Section numbers refer to the main body. The formal definitions of tree automata, of runs
+and acceptance, and of the CFG-to-TA translation are only in the paper's supplementary
+material, where they are Definitions A.1–A.10; the Lean source cites them by that
+numbering, and this note gives the corresponding section of the main body alongside.
 
 ## Module map
 
@@ -27,7 +31,7 @@ familiarity with Lean 4.
 
 ### Acceptance is a computable function, not an inductive relation
 
-Definition A.7 defines a run as a map from nodes to states. Encoding that directly gives
+A run is defined (§2.2; Definition A.7) as a map from a tree's nodes to states. Encoding that directly gives
 a relation that is mutually inductive with a relation on lists of children, and Lean's
 induction principles for mutual inductives are awkward to use.
 
@@ -38,8 +42,8 @@ ordinary induction over trees using `Tree.rec'`. `TA.Lang` wraps it as a `Prop` 
 with a `Decidable` instance.
 
 `TA.evalT` uses `TA.realTrans`, the transitions whose symbol is not `(ε,1)`. An
-ε-transition never consumes a node (Definition A.6), so it may not be used to match a
-node's constructor; only the closure may use it.
+ε-transition never consumes a node (§2.2; Definition A.6), so it may not be used to match
+a node's constructor; only the closure may use it.
 
 ### The ε-closure is a parameter, and is proved correct
 
@@ -66,7 +70,7 @@ line up with the reference implementation.
 
 ### Two intersections
 
-`Greta/Product.lean` defines the textbook product and proves it correct.
+`Greta/Product.lean` defines the product of §2.4 and proves it correct.
 `Greta/Intersect.lean` defines the algorithm Greta actually runs, with the three
 optimisations of Algorithm 3.3 as flags so that the ablations of Table 1 can be
 reproduced. The two are related by testing: `lake exe greta selftest` checks, on the
@@ -79,7 +83,7 @@ states can only shrink the language.
 
 ### Symbol names
 
-A ranked symbol is `(id, name, rank)`. Only `id` matters semantically — it identifies the
+A ranked symbol is `(id, name, rank)` (§2.2, Figure 5). Only `id` matters semantically — it identifies the
 production the symbol came from — but `name` is part of symbol equality in the reference
 implementation, so the formalisation reproduces the reference's choice of names (the
 first terminal of the right-hand side, or the empty string) rather than the paper's `δ`.
@@ -103,9 +107,21 @@ theorem greta_correct (g : CFG) (neg : List TreeExample) (Ar : TA String)
 example rules out. `GenTASound₁` and `GenTASound₂` are the two statements of Theorem 3.1,
 `L_r ⊇ L_g \ L⁻` and `L_r ∩ L⁻ = ∅`.
 
-To see what the theorems depend on:
+To see what the theorems depend on, put
+
+```lean
+import Greta
+#print axioms Greta.CFG.toTA_correct
+#print axioms Greta.prodTA_lang
+#print axioms Greta.greta_correct
+```
+
+in a file and run `lake env lean` on it:
 
 ```
-$ lake env lean -e '#print axioms Greta.prodTA_lang'
+'Greta.CFG.toTA_correct' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Greta.prodTA_lang' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Greta.greta_correct' depends on axioms: [propext, Classical.choice, Quot.sound]
 ```
+
+`scripts/check-axioms.sh` does this.

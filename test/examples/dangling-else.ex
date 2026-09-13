@@ -1,2 +1,3 @@
-# The short IF is rejected above the long IF: `else` binds to the nearest `if`.
-example 0 1 3
+# The rejected tree has the `if-then-else` production above the `if-then` one, so `else`
+# binds to the nearest `if`.
+example 1 0 3
