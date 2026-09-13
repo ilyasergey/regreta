@@ -8,9 +8,9 @@ Section, figure and algorithm numbers are those of the main body of the paper. N
 definitions (`Definition A.n`) and the proofs of Lemmas B.1 and B.2 are in the paper's
 supplementary material.
 
-Every defect below has a reproducer in the repository. `scripts/difftest.sh` runs them and
-reports them as `known`; `test/expected-divergences.txt` lists the labels, so that
-anything *new* that diverges is reported as a failure.
+Every defect below except D4 has a reproducer in the repository. `scripts/difftest.sh`
+runs them and reports them as `known`; `test/expected-divergences.txt` lists the labels, so
+that anything *new* that diverges is reported as a failure.
 
 ## Summary
 
@@ -19,7 +19,7 @@ anything *new* that diverges is reported as a failure.
 | [D1](#d1-the-intersection-drops-transitions-reachable-only-through-an-ε-transition) | The intersection drops transitions reachable only through an ε-transition | `lib/operation.ml` | the repaired grammar silently loses productions |
 | [D2](#d2-the-intersection-can-fail-to-terminate) | The intersection can fail to terminate | `lib/operation.ml` | the tool hangs |
 | [D3](#d3-convertercfg_to_ta-raises-not_found-on-unreachable-nonterminals) | `cfg_to_ta` raises `Not_found` on unreachable nonterminals | `lib/converter.ml` | the tool crashes on a legal grammar |
-| [D4](#d4-ta-invalid_transitions-escapes-from-the-intersection) | `Invalid_transitions` escapes from the intersection | `lib/treeutils.ml` | the tool crashes |
+| [D4](#d4-ta-invalid_transitions-escapes-from-the-intersection) | `Invalid_transitions` escapes from the intersection | `lib/treeutils.ml` | the tool crashes; no reproducer checked in |
 | [D5](#d5-treeutilscartesian-does-not-implement-the-papers-matching-condition) | `cartesian` does not check that paired terminals are equal | `lib/treeutils.ml` | latent |
 | [D6](#d6-pp-disables-the-tracing-that-intersects-debug-argument-selects) | `Pp` disables the tracing the `debug` flag selects | `lib/pp.ml` | debugging |
 | [D7](#d7-algorithm-31-as-printed-is-not-what-learnerml-does) | Algorithm 3.1 as printed is not what `learner.ml` does | paper vs. code | Lemma B.2's proof does not apply to the code |
@@ -205,22 +205,32 @@ improvement on `Not_found`. The formalisation takes the third route:
 
 ### D4. `Ta.Invalid_transitions` escapes from the intersection
 
-`find_trans_block_for_states_pair` (`lib/treeutils.ml:780`) raises `Invalid_transitions`
+`find_trans_block_for_states_pair` (`lib/treeutils.ml:777`) raises `Invalid_transitions`
 when asked for the transition block of a state pair that has none:
 
 ```ocaml
 match List.assoc_opt st_pair trans_blocks with
 | None -> raise Invalid_transitions
+| Some ls -> ls
 ```
 
-It escapes on `test/grammars/arith.cfg` when the learned automaton is the first argument.
+Its only caller is `st1_transblock_subset_of_st2_transblock`, which
+`simplify_trans_blocks_with_epsilon_transitions` (Step 10) applies to every pair in
+`state_pairs_renamed`. So the raise fires whenever the renamed state list and the renamed
+transition blocks get out of step, which the duplicate-state removal of Steps 5–8 can do.
+
+We hit it on an `arith`-derived input while developing the harness, as
+`Fatal error: exception Gretacore.Ta.Invalid_transitions`. The inputs currently in the
+repository no longer reach it — they hit D1 and D2 first — so unlike the other defects
+here this one has no reproducer checked in, and the entry rests on the code path rather
+than on an observed run we can replay.
 
 **Suggested fix.** Return `[]`. A product state with no transitions is a dead state, and
 the algorithm already has that notion — Step 12 of `intersect` computes `dead_states`
-exactly as the pairs with an empty block. Raising here makes a normal intermediate state
-of the construction into an error. Note that this interacts with D2: once the empty block
-is a legal value, the subset test of `st1_transblock_subset_of_st2_transblock` has to
-reject it explicitly rather than treat it as a subset of everything.
+exactly as the pairs with an empty block. Raising here turns a normal intermediate state
+of the construction into an error. This interacts with D2: once the empty block is a legal
+value, `st1_transblock_subset_of_st2_transblock` has to reject it explicitly rather than
+treat it as a subset of everything.
 
 ### D5. `Treeutils.cartesian` does not implement the paper's matching condition
 
