@@ -9,3 +9,6 @@
 /ocaml-ref/_build/
 /ocaml-ref/src/
 /test/out/
+
+# The task description; not part of the repository.
+task.md
