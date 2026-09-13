@@ -1,18 +1,34 @@
 # Divergences
 
-Three things are being compared: the paper (`ilyasergey.net/assets/pdf/papers/greta-oopsla26.pdf`
-and its extended version, arXiv:2602.18166), the reference implementation
+Three things are being compared here: the paper, the reference implementation
 (<https://github.com/verse-lab/greta>, commit `a62d6b6`), and this formalisation. This
-note records where they disagree.
+note records where they disagree, and what a fix would look like.
 
-Each defect below has a reproducer in the repository. `scripts/difftest.sh` runs them and
-reports them as `known`; `test/expected-divergences.txt` lists the labels.
+Section, figure and algorithm numbers are those of the main body of the paper. Numbered
+definitions (`Definition A.n`) and the proofs of Lemmas B.1 and B.2 are in the paper's
+supplementary material.
+
+Every defect below has a reproducer in the repository. `scripts/difftest.sh` runs them and
+reports them as `known`; `test/expected-divergences.txt` lists the labels, so that
+anything *new* that diverges is reported as a failure.
+
+## Summary
+
+| | What | Where | Severity |
+| --- | --- | --- | --- |
+| [D1](#d1-the-intersection-drops-transitions-reachable-only-through-an-ε-transition) | The intersection drops transitions reachable only through an ε-transition | `lib/operation.ml` | the repaired grammar silently loses productions |
+| [D2](#d2-the-intersection-can-fail-to-terminate) | The intersection can fail to terminate | `lib/operation.ml` | the tool hangs |
+| [D3](#d3-convertercfg_to_ta-raises-not_found-on-unreachable-nonterminals) | `cfg_to_ta` raises `Not_found` on unreachable nonterminals | `lib/converter.ml` | the tool crashes on a legal grammar |
+| [D4](#d4-ta-invalid_transitions-escapes-from-the-intersection) | `Invalid_transitions` escapes from the intersection | `lib/treeutils.ml` | the tool crashes |
+| [D5](#d5-treeutilscartesian-does-not-implement-the-papers-matching-condition) | `cartesian` does not check that paired terminals are equal | `lib/treeutils.ml` | latent |
+| [D6](#d6-pp-disables-the-tracing-that-intersects-debug-argument-selects) | `Pp` disables the tracing the `debug` flag selects | `lib/pp.ml` | debugging |
+| [D7](#d7-algorithm-31-as-printed-is-not-what-learnerml-does) | Algorithm 3.1 as printed is not what `learner.ml` does | paper vs. code | Lemma B.2's proof does not apply to the code |
+| [D8](#d8-the-trivial-symbol-optimisation-of-311-is-not-implemented) | The trivial-symbol optimisation of §3.1.1 is not implemented | paper vs. code | the paper's `O_bp` is not what the tool computes |
+| [D9](#d9-figure-7-is-internally-inconsistent) | Figure 7 is internally inconsistent | paper | typo |
 
 ## Defects in the reference implementation
 
 ### D1. The intersection drops transitions reachable only through an ε-transition
-
-*Severity: the repaired grammar loses productions.*
 
 `Operation.intersect` handles the accepting state pair differently from every other pair.
 For the accepting pair it calls `cartesian_product_trans_from` (`lib/operation.ml:57`),
@@ -35,10 +51,10 @@ For every other state pair the sibling function `cartesian_product_trans_from_fo
 (`lib/operation.ml:101`) uses `reachable_beta_lsls_from_state_symbol`, which does look
 through ε-transitions. So a transition of the accepting state that is only reachable
 through an ε-transition contributes a symbol to the common alphabet, finds no matching
-transition, and is silently dropped.
+transition, and is dropped without a warning.
 
-This is exactly the shape that `GenTA` produces: the accepting state is `e₀` and the
-levels below it are reached by the ε-chain `e_i ←(ε,1) e_{i+1}`.
+This is exactly the shape `GenTA` produces: the accepting state is `e₀`, and the levels
+below it are reached by the ε-chain `e_i ←(ε,1) e_{i+1}`.
 
 **On the paper's own running example.** `test/automata/paper-a.ta` is `A_r` of Figure 7
 and `test/automata/paper-b.ta` is `A_g` of Figure 6. `bin/main.ml:273` of the reference
@@ -55,9 +71,9 @@ trans stmt1 1 IF 4 T:IF S:expr1 T:THEN S:stmt1
 ```
 
 There is no `(IF,6)` transition: `if … then … else` has disappeared from the repaired
-grammar. Figure 9 of the paper does contain `stmt1 ←(IF,6) IF expr0 THEN stmt1 ELSE
-stmt1`, so the published figure cannot be reproduced by the implementation as it stands.
-`greta checkinter` confirms the loss against the verified product:
+grammar. Figure 9 does contain `stmt1 ←(IF,6) IF expr0 THEN stmt1 ELSE stmt1`, so the
+published figure is not what the implementation produces. `greta checkinter` confirms the
+loss against the verified product:
 
 ```
 $ lake exe greta checkinter test/automata/paper-b.ta test/automata/paper-a.ta REF 5
@@ -81,9 +97,32 @@ only the `a` transition; the tree `b` is lost.
 The same defect shows up on `test/grammars/dangling-else.cfg`, where every `if … then`
 without an `else` is lost.
 
-### D2. The intersection can fail to terminate
+**Suggested fix.** Look transitions up through the ε-closure at the accepting pair too.
+The one-line version is to replace, in `cartesian_product_trans_from`,
 
-*Severity: the tool hangs.*
+```ocaml
+let rhs_blsls1 = find_corr_trans_in_tbl sym st1 trans_tbl1 in
+let rhs_blsls2 = find_corr_trans_in_tbl sym st2 trans_tbl2 in
+```
+
+by the ε-aware lookup that the rest of the algorithm already uses:
+
+```ocaml
+let rhs_blsls1 = reachable_beta_lsls_from_state_symbol st1 sym trans_tbl1 debug in
+let rhs_blsls2 = reachable_beta_lsls_from_state_symbol st2 sym trans_tbl2 debug in
+```
+
+`cartesian_product_trans_from` then does the same thing as
+`cartesian_product_trans_from_for_sym` and can be dropped in favour of it: Step 1 becomes
+the first iteration of the Step 3 worklist. That is how the formalisation is structured —
+[`transitionsAtPair`](../Greta/Intersect.lean#L58) is used for the accepting pair and for
+every other pair alike, and [`TA.transAt`](../Greta/Intersect.lean#L40) always looks
+through [`TA.epsDown`](../Greta/Intersect.lean#L32).
+
+A regression test for it: `L(A ⊗ A) = L(A)` for any `A` with an ε-transition out of its
+accepting state, which `test/automata/eps-a.ta` is.
+
+### D2. The intersection can fail to terminate
 
 `Operation.collect_eps_connected_states_from_states_pair` (`lib/operation.ml:247`) walks
 the ε-transitions of the product recursively and keeps no record of the states it has
@@ -100,18 +139,43 @@ The same inputs in the other argument order terminate (with the loss described i
 whether the tool hangs depends on the order of its arguments. `test/automata/finals-a.ta`
 with `finals-b.ta` is a four-transition reproducer.
 
-A likely source of the cycles is `Treeutils.st1_transblock_subset_of_st2_transblock`:
-its inner `traverse_rhs` returns `true` on the empty list, so a product state with *no*
+A likely source of the cycles is `Treeutils.st1_transblock_subset_of_st2_transblock`: its
+inner `traverse_rhs` returns `true` on the empty list, so a product state with *no*
 transitions counts as a subset of every other state and gets ε-linked from all of them.
-Algorithm 3.3 as printed has the same gap — `if RHS of Δ_i ⊆ RHS of Δ_j` is vacuously
-true when `Δ_i` is empty — and this formalisation guards against it explicitly
-(`introEpsStep` in `Greta/Intersect.lean` requires `Δ_i ≠ ∅`). We confirmed the loop's
-location and the vacuous-subset behaviour, but not that this is the cycle in any
-particular run.
+Algorithm 3.3 as printed has the same gap — `if RHS of Δ_i ⊆ RHS of Δ_j` is vacuously true
+when `Δ_i` is empty. We confirmed the loop's location and the vacuous-subset behaviour,
+but not that this is the cycle in any particular run.
+
+**Suggested fix**, in two parts.
+
+*Make the walk total.* Thread a visited set through the recursion:
+
+```ocaml
+let rec collect_eps_connected (from_states : state * state) (seen : (state * state) list)
+    (raw_trans : ...) : (state * state) list =
+  if List.mem from_states seen then [] else
+  let seen = from_states :: seen in
+  ...  (* recurse with `seen` instead of starting over *)
+```
+
+The walk then terminates on any input, cycles included, and the result is the ε-closure of
+the pair rather than an unfolding of it.
+
+*Stop creating the spurious links.* Require the subset to be non-empty, both in the code
+and in Algorithm 3.3:
+
+```ocaml
+let res_bool =
+  st1_trans_rhs_lst <> []                       (* added *)
+  && List.length st1_trans_rhs_lst <= List.length st2_trans_rhs_lst
+  && traverse_rhs st1_trans_rhs_lst
+```
+
+and correspondingly `if ∅ ≠ RHS of Δ_i ⊆ RHS of Δ_j` in the pseudocode. A state with no
+transitions is a dead state, which Step 12 already removes; it should not be ε-linked from
+anything first. [`introEpsStep`](../Greta/Intersect.lean#L134) carries that guard.
 
 ### D3. `Converter.cfg_to_ta` raises `Not_found` on unreachable nonterminals
-
-*Severity: the tool crashes on a legal grammar.*
 
 `collect_nonterm_orders` (`lib/converter.ml:150`) assigns a level only to nonterminals
 reachable from a start nonterminal, and `collect_sym_orders_wrt_nonterm_order` then looks
@@ -122,13 +186,41 @@ $ ocaml-ref/_build/default/driver/main.exe cfg2ta test/grammars/unreachable.cfg
 Fatal error: exception Not_found
 ```
 
-The grammar is `A → x`, `B → A y`, `U → y` with start `A`.
+The grammar is `A → x`, `B → A y`, `U → y` with start `A` (`test/grammars/unreachable.cfg`).
+
+**Suggested fix.** An unreachable nonterminal cannot occur in any complete parse tree, so
+dropping it changes nothing about the language. Prune before converting:
+
+```ocaml
+let reachable = nonterms_reachable_from g.starts g.productions in
+let g = { g with nonterms   = List.filter (fun nt -> List.mem nt reachable) g.nonterms;
+                 productions = List.filter (fun (lhs, _) -> List.mem lhs reachable) g.productions }
+```
+
+and warn, since an unreachable nonterminal in a grammar the user wrote is usually a
+mistake. Failing with a diagnostic that names the nonterminal would also be an
+improvement on `Not_found`. The formalisation takes the third route:
+[`levelOf`](../Greta/Order.lean#L75) returns an `Option`, and
+[`baseOrder`](../Greta/Order.lean#L108) skips the symbols with no level.
 
 ### D4. `Ta.Invalid_transitions` escapes from the intersection
 
 `find_trans_block_for_states_pair` (`lib/treeutils.ml:780`) raises `Invalid_transitions`
-when it is asked for the transition block of a state pair that has none. This escapes on
-`test/grammars/arith.cfg` when the learned automaton is the first argument.
+when asked for the transition block of a state pair that has none:
+
+```ocaml
+match List.assoc_opt st_pair trans_blocks with
+| None -> raise Invalid_transitions
+```
+
+It escapes on `test/grammars/arith.cfg` when the learned automaton is the first argument.
+
+**Suggested fix.** Return `[]`. A product state with no transitions is a dead state, and
+the algorithm already has that notion — Step 12 of `intersect` computes `dead_states`
+exactly as the pairs with an empty block. Raising here makes a normal intermediate state
+of the construction into an error. Note that this interacts with D2: once the empty block
+is a legal value, the subset test of `st1_transblock_subset_of_st2_transblock` has to
+reject it explicitly rather than treat it as a subset of everything.
 
 ### D5. `Treeutils.cartesian` does not implement the paper's matching condition
 
@@ -141,15 +233,48 @@ rather than treating the pair as non-matching.
 Neither is observable in a normal run: ranked symbols are keyed by production identifier,
 and two transitions carrying the same symbol come from the same production, hence agree on
 both length and terminals. The function is exported and the invariant is undocumented, so
-the guards are worth having. `compatAll` in `Greta/Product.lean` implements the condition
-as stated.
+the guards are worth having.
+
+**Suggested fix.** Make the function partial in the intended sense rather than in the
+exception sense — return the matched pairs as an option and let the caller drop a
+non-match:
+
+```ocaml
+let rec cartesian (xs : beta list) (ys : beta list) : (beta * beta) list option =
+  match xs, ys with
+  | [], [] -> Some []
+  | T a :: xs, T b :: ys when String.equal a b ->
+      Option.map (fun r -> (T a, T b) :: r) (cartesian xs ys)
+  | (S _ as x) :: xs, (S _ as y) :: ys ->
+      Option.map (fun r -> (x, y) :: r) (cartesian xs ys)
+  | _ -> None
+```
+
+`cross_buckets` then uses `List.filter_map` instead of `List.map`.
+[`compatAll`](../Greta/Product.lean#L33) and [`zipBetas`](../Greta/Product.lean#L39)
+implement the condition as stated, and
+[`compatAll_of_match`](../Greta/Product.lean#L217) proves that it is exactly the condition
+under which the two automata can accept the same tree, so the guard costs nothing.
 
 ### D6. `Pp` disables the tracing that `intersect`'s `debug` argument selects
 
-`lib/pp.ml` begins with `let debug = false`, and all `Pp.pp_*` printers are gated on it.
-Passing `debug:true` to `Operation.intersect` therefore prints the step banners but none of
-the automata, which makes the trace hard to use. (This is how the `-- hack fix because
-there are too many such uses to fix... --` comment above it describes itself.)
+`lib/pp.ml` begins with
+
+```ocaml
+(* hack fix because there are too many such uses to fix... *)
+let debug = false
+let noprintf fmt = if debug then printf fmt else ifprintf stdout fmt
+```
+
+and every `Pp.pp_*` printer is gated on it. Passing `debug:true` to `Operation.intersect`
+therefore prints the step banners but none of the automata, which makes the trace hard to
+use — which is how we ended up locating D2 by stack sampling rather than by reading a
+trace.
+
+**Suggested fix.** Give the printers a `debug` parameter, as the rest of the library
+already does, and pass the caller's flag through; or, less invasively, replace the
+module-level `let debug = false` with a mutable flag that `intersect` and the other
+entry points set on the way in.
 
 ## Differences between the paper and the reference implementation
 
@@ -160,13 +285,13 @@ newly created order:
 
 > **for** `i` in `[0, size)` **do** … `O_tmp ← O_tmp ∪ withOrder(S ∪ ithSymbols, o + i)`
 
-preceded by `O_tmp ← pushN(O_tmp, o + 1, size − 1)`. The worked example in Section 3.1.2
-follows this: `{(SEMI,2),0), ((PLUS,3),0), ((STAR,3),0)}` becomes
+preceded by `O_tmp ← pushN(O_tmp, o + 1, size − 1)`. The worked example in §3.1.2 follows
+this: `{((SEMI,2),0), ((PLUS,3),0), ((STAR,3),0)}` becomes
 `{((SEMI,2),0), ((STAR,3),0), ((SEMI,2),1), ((PLUS,3),1)}`, with `(SEMI,2)` at both orders.
 
-`Learner.update_op_per_ord_amb_symsls` (`lib/learner.ml:40`) instead pushes by `size`
-(not `size − 1`) when `S` is non-empty, inserts only `ithSymbols` at each new order, and
-places `S` once, below everything, at order `o + size`. It then records `S` in
+`Learner.update_op_per_ord_amb_symsls` (`lib/learner.ml:40`) instead pushes by `size` (not
+`size − 1`) when `S` is non-empty, inserts only `ithSymbols` at each new order, and places
+`S` once, below everything, at order `o + size`. It then records `S` in
 `special_loop_symbols`, and `Learner.learn_ta` gives those symbols transitions whose
 right-hand side points back at the *original* order, restoring by a back-edge what the
 published algorithm achieves by replication.
@@ -175,15 +300,24 @@ This matters for Lemma B.2, whose proof appeals to "the construction of `O_p`, w
 copies the non-conflicting symbols to each newly inserted order". That is an argument
 about the published algorithm, not about the code.
 
-This formalisation implements the published algorithm (`relayerOrder` in
-`Greta/Learn.lean`).
+**Suggested fix.** The smaller change is to the code: make the loop insert
+`S ∪ ithSymbols` at each new order and push by `size − 1`, which is what
+[`relayerOrder`](../Greta/Learn.lean#L38) does, and drop `special_loop_symbols` and the
+back-edges in `learn_ta` that compensate for its absence. Lemma B.2 then applies to the
+code as written.
 
-### D8. The trivial-symbol optimisation of Section 3.1.1 is not implemented
+If the back-edge construction is preferred — it produces fewer states — then Algorithm 3.1
+in the paper should be restated to match it, and Lemma B.2 reproved: the back-edge makes
+the non-conflicting symbols reachable from the original order rather than present at it,
+so the lemma's conclusion has to be about reachability in the generated automaton rather
+than about membership in `O_p`.
+
+### D8. The trivial-symbol optimisation of §3.1.1 is not implemented
 
 `lib/converter.ml:255` reads `(* 3. Find trivial symbol and nontrminal - Ignore for now *)`,
-and `collect_sym_orders_wrt_nonterm_order` gives every symbol an order. So `F_tr` is
-empty in the tool and `O_bp` contains `((IDENT,1), 2)`, whereas Section 2.3 prints `O_bp`
-for the running example without it:
+and `collect_sym_orders_wrt_nonterm_order` gives every symbol an order. So `F_tr` is empty
+in the tool and `O_bp` contains `((IDENT,1), 2)`, whereas §2.3.1 prints `O_bp` for the
+running example without it:
 
 ```
 $ ocaml-ref/_build/default/driver/main.exe obp test/grammars/running-example.cfg
@@ -192,20 +326,31 @@ order 1 3 5 6 7 8 9
 order 2 4              # (IDENT,1), which the paper excludes
 ```
 
-Section 3.1.1 says the exclusion is an optimisation that does not affect correctness, so
-both are sound. The formalisation implements the exclusion and takes `--keep-trivial` to
-switch it off; with that flag the two implementations agree byte for byte, which is how
+§3.1.1 says the exclusion is an optimisation that does not affect correctness, so both are
+sound.
+
+**Suggested fix.** `F_tr` is a two-line predicate — a rank-1 symbol whose production is
+`A → a` and all of whose left-hand side's productions have that shape — so implementing it
+is cheap; [`trivialSyms`](../Greta/Order.lean#L90) is the whole of it. Filtering `O_bp`
+through it makes the tool produce the `O_bp` and the `A_r` the paper prints. Failing that,
+§3.1.1 should say that the optimisation is described but not implemented, since a reader
+checking Figure 7 against the artefact will otherwise get a different automaton.
+
+The formalisation implements the exclusion and takes `--keep-trivial` to switch it off;
+with that flag the two implementations agree byte for byte, which is how
 `scripts/difftest.sh` compares them.
 
 ### D9. Figure 7 is internally inconsistent
 
 Figure 7 lists `e2 ←(TINT,4) TINT e2 EQ e2`, replacing the `ident` nonterminal by `e2`,
 while the corresponding rows at `e3` and `e4` keep it: `e3 ←(TINT,4) TINT ident EQ e3`.
-Footnote 3 of Section 3.1.3 says the δ-generator replaces "each old state (excluding the
-states associated with trivial symbols)", which makes the `e3` and `e4` rows the correct
-ones. `test/automata/paper-a.ta` uses `TINT ident EQ e2` and says so in a comment.
+Footnote 3 of §3.1.3 says the δ-generator replaces "each old state (excluding the states
+associated with trivial symbols)", which makes the `e3` and `e4` rows the correct ones.
 
-`fillRhs` in `Greta/GenTA.lean` implements the footnote.
+**Suggested fix.** Print `e2 ←(TINT,4) TINT ident EQ e2`.
+[`fillRhs`](../Greta/GenTA.lean#L22) implements the footnote, and with that row corrected
+`lake exe greta genta` reproduces Figure 7 transition for transition; the self-test checks
+it.
 
 ## Choices made in the formalisation
 
@@ -213,17 +358,20 @@ These are deliberate, and are not defects in either the paper or the tool.
 
 * **The δ symbol is named `""`.** The paper writes `δ` for the ranked symbol of a
   production with no terminal on its right-hand side; `Cfg.first_terminal_of` uses the
-  empty string. Symbol names carry no meaning — symbols are told apart by their
-  production identifier — but they take part in symbol equality in the reference
-  implementation, so the formalisation follows the reference to keep the printed automata
-  comparable.
+  empty string. Symbol names carry no meaning — symbols are told apart by their production
+  identifier — but they take part in symbol equality in the reference implementation, so
+  the formalisation follows the reference to keep the printed automata comparable.
 * **ε-introduction is guarded.** See D2.
 * **Product states are pairs.** The reference encodes a product state by concatenating the
-  two names (`Treeutils.state_pair_append`), which is not injective. `TA` is
-  parameterised by its state type so that the product construction can use real pairs; the
-  printer turns them into `(q1,q2)`.
-* **Associativity positions index the whole right-hand side.** Definition of `t_idx` in
-  Section 3 says `0 ≤ i < Rank(t_T)`, which counts terminals as well as nonterminals, and
-  `Treeutils.find_index_subt_with_same_sym` agrees. Section 3.1.2's prose ("as a right
-  child (position 1)") counts only nonterminals. The two readings agree on the paper's
-  example; the formalisation follows the formal definition and the code.
+  two names (`Treeutils.state_pair_append`), which is not injective. [`TA`](../Greta/Basic.lean#L130)
+  is parameterised by its state type so that the product construction can use real pairs;
+  the printer turns them into `(q1,q2)`.
+* **Associativity positions index the whole right-hand side.** The definition of `t_idx`
+  in §3 says `0 ≤ i < Rank(t_T)`, which counts terminals as well as nonterminals, and
+  `Treeutils.find_index_subt_with_same_sym` agrees. §3.1.2's prose ("as a right child
+  (position 1)") counts only nonterminals. The two readings agree on the paper's example;
+  the formalisation follows the formal definition and the code.
+* **`HighToLow` compares against `O_bp`.** §3.1.3 says `s_h` must be "at a higher order in
+  `O_bp`" than `s_l`, and reports the orders from `O_p`. Comparing against `O_p` instead
+  would report every ordinary nesting of one symbol under another as a cycle.
+  [`highToLow`](../Greta/Order.lean#L134) follows the text.

@@ -160,27 +160,13 @@ the Lean development.
 
 The translation from grammars to tree automata (§2.2) and the base precedence order
 (§3.1.1) agree byte for byte between the two implementations on every well-formed grammar
-tested. The intersection of Algorithm 3.3 does not. In summary, with reproducers and
-diagnoses in `docs/divergences.md`:
+tested. The intersection of Algorithm 3.3 does not: on the paper's own running example it
+silently drops every `if … then … else` statement, and with its arguments in the other
+order it does not terminate.
 
-* **The intersection drops transitions reachable only through an ε-transition.** On the
-  paper's own running example — Figure 6 intersected with Figure 7, in the argument order
-  the tool itself uses — the result has no `(IF,6)` transition at all, so every
-  `if … then … else` statement is lost from the repaired grammar. Figure 9 does contain
-  that transition, so the published figure is not what the current implementation
-  produces. A two-state automaton reproduces the bug.
-* **The intersection can loop forever.** With the arguments in the other order the same
-  example does not terminate. The loop is in
-  `Operation.collect_eps_connected_states_from_states_pair`, which walks ε-transitions
-  without recording the states it has visited.
-* **`Converter.cfg_to_ta` raises `Not_found`** on any grammar with a nonterminal that is
-  not reachable from the start symbol.
-* Three smaller discrepancies between the paper and the code: Algorithm 3.1 as printed
-  differs from what `learner.ml` does (which matters for the proof of Lemma B.2), the
-  trivial-symbol optimisation of §3.1.1 is not implemented, and `Treeutils.cartesian` does
-  not check that paired terminals are equal.
-* One typo in the paper: the `(TINT,4)` row of Figure 7 at `e2` contradicts the rows at
-  `e3` and `e4` and footnote 3 of §3.1.3.
+[`docs/divergences.md`](docs/divergences.md) is the write-up: every divergence found
+between the paper, the reference implementation and this formalisation, each with a
+reproducer, a diagnosis, and a suggested fix.
 
 ## Layout
 
