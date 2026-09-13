@@ -1,0 +1,137 @@
+/-
+The base precedence order `O_bp` of Section 3.1.1, trivial symbols `F_tr` of Section
+3.1.1, and the `HighToLow` relation used by Algorithm 3.2 to reintroduce cycles.
+-/
+import Greta.CFG
+
+namespace Greta
+
+/-- A precedence order: a map from order (level) to the symbols sitting at that order. -/
+abbrev OrderMap := List (Nat × List Sym)
+
+namespace OrderMap
+
+/-- Symbols at a given order. -/
+def ofOrder (m : OrderMap) (o : Nat) : List Sym :=
+  (m.filter fun p => p.1 == o).flatMap Prod.snd
+
+/-- Orders at which a symbol occurs. -/
+def ordersOf (m : OrderMap) (s : Sym) : List Nat :=
+  (m.filter fun p => p.2.contains s).map Prod.fst
+
+/-- Largest order occurring in the map. -/
+def maxOrder (m : OrderMap) : Nat := m.foldl (fun acc p => max acc p.1) 0
+
+/-- All symbols mentioned. -/
+def symbols (m : OrderMap) : List Sym := (m.flatMap Prod.snd).dedup
+
+/-- Normal form: one entry per order, ordered by increasing order, duplicates removed. -/
+def normalise (m : OrderMap) : OrderMap :=
+  (List.range (m.maxOrder + 1)).filterMap fun o =>
+    let ss := (m.ofOrder o).dedup
+    if ss.isEmpty then none else some (o, ss)
+
+/-- Shift every order `≥ o` up by `n` (`pushN` of Algorithm 3.1). -/
+def pushN (m : OrderMap) (o n : Nat) : OrderMap :=
+  m.map fun p => if o ≤ p.1 then (p.1 + n, p.2) else p
+
+/-- Drop everything at order `o`. -/
+def removeOrder (m : OrderMap) (o : Nat) : OrderMap := m.filter fun p => p.1 != o
+
+/-- `withOrder S o`: place the symbols `S` at order `o`. -/
+def withOrder (ss : List Sym) (o : Nat) : OrderMap := if ss.isEmpty then [] else [(o, ss)]
+
+end OrderMap
+
+namespace CFG
+
+/-! ### Levels of nonterminals -/
+
+/-- Nonterminals occurring on the right-hand side of some production of `A`. -/
+def succNts (g : CFG) (A : Nonterminal) : List Nonterminal :=
+  ((g.prods.filter fun p => p.1 == A).flatMap fun p =>
+    p.2.filterMap fun
+      | .nt B => some B
+      | .term _ => none).dedup
+
+/-- One layer of breadth-first search from `frontier`. -/
+def levelStep (g : CFG) : Nat → List Nonterminal → List (Nonterminal × Nat) → Nat →
+    List (Nonterminal × Nat)
+  | 0,        _,        acc, _ => acc
+  | fuel + 1, frontier, acc, d =>
+      let seen := acc.map Prod.fst
+      let next := ((frontier.flatMap (g.succNts ·)).dedup).filter fun B => !seen.contains B
+      if next.isEmpty then acc
+      else levelStep g fuel next (acc ++ next.map fun B => (B, d + 1)) (d + 1)
+
+/--
+`d(e)`, the distance of each nonterminal from a start nonterminal (Section 3.1.1).
+Nonterminals unreachable from a start nonterminal get no level.
+-/
+def levels (g : CFG) : List (Nonterminal × Nat) :=
+  levelStep g (g.nonterms.length + 1) g.starts (g.starts.map fun s => (s, 0)) 0
+
+/-- Level of a nonterminal, `0` for start nonterminals. -/
+def levelOf (g : CFG) (A : Nonterminal) : Option Nat := g.levels.lookup A
+
+/-! ### Trivial symbols -/
+
+/-- A production whose right-hand side is a single terminal. -/
+def isSingleTerminalProd (p : Production) : Bool :=
+  match p.2 with
+  | [.term _] => true
+  | _         => false
+
+/--
+`F_tr` (Section 3.1.1): rank-1 symbols whose production maps a nonterminal to a single
+terminal, and *all* of whose left-hand side's productions do the same.  Such symbols
+cannot take part in an associativity or precedence conflict.
+-/
+def trivialSyms (g : CFG) : List Sym :=
+  g.rankedProds.filterMap fun sp =>
+    if isSingleTerminalProd sp.2 ∧ ((g.prods.filter fun p => p.1 == sp.2.1).all isSingleTerminalProd)
+    then some sp.1 else none
+
+/-! ### The base precedence order -/
+
+/-- `ô(s) = d(Lhs(Prod(s)))`, the order of a ranked symbol (Section 3.1.1). -/
+def symOrder (g : CFG) (sp : Sym × Production) : Option Nat := g.levelOf sp.2.1
+
+/--
+`O_bp = {(s, ô(s)) | s ∈ F \ F_tr}` (Section 3.1.1), presented as a map from order to
+the symbols at that order.
+
+Note.  The reference implementation does not exclude trivial symbols here; see
+`docs/divergences.md`.  Section 3.1.1 states that this exclusion is an optimisation that
+does not affect correctness, so both choices are sound.
+-/
+def baseOrder (g : CFG) (excludeTrivial : Bool := true) : OrderMap :=
+  let triv := g.trivialSyms
+  let pairs := g.rankedProds.filterMap fun sp =>
+    if excludeTrivial ∧ triv.contains sp.1 then none
+    else (g.symOrder sp).map fun o => (sp.1, o)
+  (OrderMap.normalise (pairs.map fun so => (so.2, [so.1])))
+
+/-! ### Cycles in the symbol order -/
+
+/--
+`HighToLow(G, O_p)` (Section 3.1.3).  A pair of symbols `(s_l, s_h)` is reported when the
+production of `s_h` mentions the left-hand side nonterminal of `s_l` on its right-hand
+side while `s_h` sits at a strictly higher order than `s_l`, so that `s_l` must be allowed
+to appear *below* `s_h` even though the learned hierarchy places it above.  The reported
+orders are the highest order of `s_h` and the lowest order of `s_l`.
+-/
+def highToLow (g : CFG) (op : OrderMap) : List ((Sym × Nat) × (Sym × Nat)) :=
+  g.rankedProds.flatMap fun sh =>
+    g.rankedProds.filterMap fun sl =>
+      let ohs := op.ordersOf sh.1
+      let ols := op.ordersOf sl.1
+      match ohs.max?, ols.min? with
+      | some oh, some ol =>
+          if ol < oh ∧ sh.2.2.contains (.nt sl.2.1) then some ((sl.1, ol), (sh.1, oh))
+          else none
+      | _, _ => none
+
+end CFG
+
+end Greta

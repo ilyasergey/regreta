@@ -1,0 +1,11 @@
+/.lake/
+/build/
+*.olean
+*.olean.tmp
+*.ilean
+*.trace
+.DS_Store
+/ocaml-ref/.greta/
+/ocaml-ref/_build/
+/ocaml-ref/src/
+/test/out/
