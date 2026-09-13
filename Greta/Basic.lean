@@ -168,6 +168,17 @@ def epsEdges (A : TA σ) : List (σ × σ) :=
       | _           => none
     else none
 
+/-- Rename the states of an automaton. -/
+def mapStates {σ τ : Type} (f : σ → τ) (A : TA σ) : TA τ where
+  states    := A.states.map f
+  alphabet  := A.alphabet
+  terminals := A.terminals
+  finals    := A.finals.map f
+  trans     := A.trans.map fun tr =>
+    ⟨f tr.target, tr.sym, tr.rhs.map fun
+      | .term a  => .term a
+      | .state q => .state (f q)⟩
+
 /-- Transitions that are not ε-transitions.  ε-transitions never consume a tree node
 (Definition A.6), so only these are used when matching a node's constructor. -/
 def realTrans (A : TA σ) : List (Transition σ) :=

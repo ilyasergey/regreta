@@ -23,7 +23,7 @@ def optsOf (args : List String) : IntersectOpts :=
     introEps     := !args.contains "--no-eps" }
 
 /-- Build the learned automaton `A_r` from a grammar and the unselected examples. -/
-def learnedTA (g : CFG) (neg : List TreeExample) (excludeTrivial : Bool) : TA String :=
+def learnedTA (g : CFG) (neg : List TreeExample) (excludeTrivial : Bool) : TA GState :=
   let obp := g.baseOrder excludeTrivial
   let mto := toMapOf obp neg
   let (oa, op) := learnOaOp g neg mto excludeTrivial
@@ -50,7 +50,7 @@ def runCheckInter (p1 p2 pr : String) (depth : Nat) : IO UInt32 := do
   let a ← readTA p1
   let b ← readTA p2
   let r ← readTA pr
-  let spec := Serialize.renamePairTA (prodTA a b)
+  let spec := Serialize.renamePairTA id id (prodTA a b)
   let ts := intersectionCorpus a b r 24 depth
   let d := compareOn spec r ts
   IO.println s!"checked {d.checked} trees"
@@ -84,15 +84,17 @@ def main (args : List String) : IO UInt32 := do
       match parseExamples g (← IO.FS.readFile pe) with
       | .error e => throw (IO.userError e)
       | .ok neg =>
-          IO.println (taToString (learnedTA g neg (!rest.contains "--keep-trivial"))); return 0
+          IO.println (taToString (renameGen (learnedTA g neg (!rest.contains "--keep-trivial"))))
+          return 0
   | "intersect" :: p1 :: p2 :: rest => do
       let a ← readTA p1
       let b ← readTA p2
-      IO.println (taToString (Serialize.renamePairTA (intersectTA a b (optsOf rest)))); return 0
+      IO.println (taToString (Serialize.renamePairTA id id (intersectTA a b (optsOf rest))))
+      return 0
   | ["product", p1, p2] => do
       let a ← readTA p1
       let b ← readTA p2
-      IO.println (taToString (Serialize.renamePairTA (prodTA a b))); return 0
+      IO.println (taToString (Serialize.renamePairTA id id (prodTA a b))); return 0
   | "repair" :: pg :: pe :: rest => do
       let g ← readCFG pg
       match parseExamples g (← IO.FS.readFile pe) with
@@ -100,7 +102,7 @@ def main (args : List String) : IO UInt32 := do
       | .ok neg =>
           let keep := !rest.contains "--keep-trivial"
           let ar := learnedTA g neg keep
-          let res := Serialize.renamePairTA (intersectTA ar g.toTA (optsOf rest))
+          let res := Serialize.renamePairTA GState.name id (intersectTA ar g.toTA (optsOf rest))
           IO.println (cfgToString (taToCFG res)); return 0
   | "checkinter" :: p1 :: p2 :: pr :: rest =>
       runCheckInter p1 p2 pr ((rest.head?.bind String.toNat?).getD 4)

@@ -54,7 +54,7 @@ We state the *right-to-left* half, which is the one used to prove Theorem 3.1(2)
 learned order puts `s₁` strictly below `s₂`, no tree of `L_r` has `s₁` directly above
 `s₂`.  `directlyAbove` is the pattern of a tree example.
 -/
-def LemmaB1Stmt (Ar : TA String) (op : OrderMap) : Prop :=
+def LemmaB1Stmt {σ : Type} [DecidableEq σ] (Ar : TA σ) (op : OrderMap) : Prop :=
   ∀ (s₁ s₂ : Sym) (o₁ o₂ : Nat) (i : Nat),
     o₁ ∈ op.ordersOf s₁ → o₂ ∈ op.ordersOf s₂ → o₂ < o₁ →
     ∀ t : Tree, Ar.Lang t → (TreeExample.mk s₁ s₂ i).occursIn t = false
@@ -63,14 +63,16 @@ def LemmaB1Stmt (Ar : TA String) (op : OrderMap) : Prop :=
 Theorem 3.1 (Soundness of GenTA), statement (1): the learned automaton keeps every parse
 tree of the input grammar that the user did not exclude, `L_r ⊇ L_g \ L⁻`.
 -/
-def GenTASound₁ (g : CFG) (neg : List TreeExample) (Ar : TA String) : Prop :=
+def GenTASound₁ {σ : Type} [DecidableEq σ] (g : CFG) (neg : List TreeExample) (Ar : TA σ) :
+    Prop :=
   ∀ t : Tree, g.repairedLang neg t = true → Ar.Lang t
 
 /--
 Theorem 3.1 (Soundness of GenTA), statement (2): the learned automaton rejects every
 excluded tree, `L_r ∩ L⁻ = ∅`.
 -/
-def GenTASound₂ (g : CFG) (neg : List TreeExample) (Ar : TA String) : Prop :=
+def GenTASound₂ {σ : Type} [DecidableEq σ] (g : CFG) (neg : List TreeExample) (Ar : TA σ) :
+    Prop :=
   ∀ t : Tree, Ar.Lang t → g.excludedLang neg t = false
 
 /-! ### Theorem 3.2 -/
@@ -84,7 +86,8 @@ The proof is the paper's: the intersection recognises `L_r ∩ L_g` (`prodTA_lan
 is exactly the parse trees of `g` (`CFG.toTA_correct`), and the two halves of Theorem 3.1
 pin down `L_r` on that set.
 -/
-theorem greta_correct (g : CFG) (neg : List TreeExample) (Ar : TA String)
+theorem greta_correct {σ : Type} [DecidableEq σ]
+    (g : CFG) (neg : List TreeExample) (Ar : TA σ)
     (h₁ : GenTASound₁ g neg Ar) (h₂ : GenTASound₂ g neg Ar) (t : Tree) :
     (prodTA Ar g.toTA).Lang t ↔ g.repairedLang neg t = true := by
   rw [prodTA_lang, CFG.toTA_correct]
@@ -100,14 +103,16 @@ The same statement in the "no tree is lost, no excluded tree survives" form used
 paper's abstract: the repaired automaton accepts a tree iff the grammar did and the user
 did not rule it out.
 -/
-theorem greta_no_loss (g : CFG) (neg : List TreeExample) (Ar : TA String)
+theorem greta_no_loss {σ : Type} [DecidableEq σ]
+    (g : CFG) (neg : List TreeExample) (Ar : TA σ)
     (h₁ : GenTASound₁ g neg Ar) (h₂ : GenTASound₂ g neg Ar) (t : Tree)
     (hg : g.isParseTree t = true) (hn : g.excludedLang neg t = false) :
     (prodTA Ar g.toTA).Lang t := by
   rw [greta_correct g neg Ar h₁ h₂ t]
   simp [CFG.repairedLang, hg, hn]
 
-theorem greta_excludes (g : CFG) (neg : List TreeExample) (Ar : TA String)
+theorem greta_excludes {σ : Type} [DecidableEq σ]
+    (g : CFG) (neg : List TreeExample) (Ar : TA σ)
     (h₁ : GenTASound₁ g neg Ar) (h₂ : GenTASound₂ g neg Ar) (t : Tree)
     (hn : g.excludedLang neg t = true) : ¬ (prodTA Ar g.toTA).Lang t := by
   rw [greta_correct g neg Ar h₁ h₂ t]
@@ -120,7 +125,7 @@ One round of grammar repair (Figure 4): learn the restrictions from the unselect
 examples, generate `A_r`, intersect it with `A_g`, and read the result back as a grammar.
 -/
 def repairOnce (g : CFG) (neg : List TreeExample)
-    (opts : IntersectOpts := {}) (excludeTrivial : Bool := true) : TA (String × String) :=
+    (opts : IntersectOpts := {}) (excludeTrivial : Bool := true) : TA (GState × String) :=
   let obp := g.baseOrder excludeTrivial
   let mto := toMapOf obp neg
   let (oa, op) := learnOaOp g neg mto excludeTrivial
@@ -129,7 +134,7 @@ def repairOnce (g : CFG) (neg : List TreeExample)
 
 /-- The same round, using the verified textbook product instead of Algorithm 3.3. -/
 def repairOnceSpec (g : CFG) (neg : List TreeExample)
-    (excludeTrivial : Bool := true) : TA (String × String) :=
+    (excludeTrivial : Bool := true) : TA (GState × String) :=
   let obp := g.baseOrder excludeTrivial
   let mto := toMapOf obp neg
   let (oa, op) := learnOaOp g neg mto excludeTrivial

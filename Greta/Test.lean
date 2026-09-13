@@ -134,10 +134,10 @@ def allOpts : List (String × IntersectOpts) :=
 
 def testIntersectionAgainstProduct (r : Report) (label : String)
     (a b : TA String) (depth : Nat) : IO Report := do
-  let spec := Serialize.renamePairTA (prodTA a b)
+  let spec := Serialize.renamePairTA id id (prodTA a b)
   let mut r := r
   for (name, opts) in allOpts do
-    let res := Serialize.renamePairTA (intersectTA a b opts)
+    let res := Serialize.renamePairTA id id (intersectTA a b opts)
     let ts := intersectionCorpus a b res 8 depth
     let d := compareOn spec res ts
     r ← check r s!"{label}: {name} agrees with the verified product"
@@ -162,11 +162,11 @@ def expectedOp : List (Nat × List Int) :=
   , (4, [3, 7, 8, 9]) ]      -- (TINT,4), (INT,1), ((),3), (δ,1)
 
 /-- One transition, rendered compactly so that it can be read against Figure 7. -/
-def shapeOf (tr : Transition String) : String :=
-  tr.target ++ " <" ++ toString tr.sym.id ++
+def shapeOf (tr : Transition GState) : String :=
+  tr.target.name ++ " <" ++ toString tr.sym.id ++
     String.join (tr.rhs.map fun
       | .term a  => " " ++ a
-      | .state q => " [" ++ q ++ "]")
+      | .state q => " [" ++ q.name ++ "]")
 
 /--
 `A_r` as printed in Figure 7.  The `(TINT,4)` row at `e2` is printed there as
@@ -217,8 +217,8 @@ def testRunningExampleIntersection (r : Report) : IO Report := do
   r ← check r "A_r matches Figure 7 transition for transition"
         (arShape == expectedAr.mergeSort (· ≤ ·))
         s!"{ar.trans.length} transitions, expected {expectedAr.length}"
-  r ← check r "A_r accepts at e0" (ar.finals == ["e0"])
-  testIntersectionAgainstProduct r "running example" ar g.toTA 4
+  r ← check r "A_r accepts at e0" (ar.finals == [GState.lvl 0])
+  testIntersectionAgainstProduct r "running example" (Serialize.renameGen ar) g.toTA 4
 
 /-- `S -> S + S | S * S | ( S ) | x | y | z`, the grammar of Section 1. -/
 def arith : CFG where
@@ -253,7 +253,7 @@ def testAssocOnly (r : Report) : IO Report := do
   r ← check r "a single PLUS is accepted" (ar.langB (plus x x))
   r ← check r "the left-associative nesting is accepted" (ar.langB (plus (plus x x) x))
   r ← check r "the right-associative nesting is rejected" (!(ar.langB (plus x (plus x x))))
-  testIntersectionAgainstProduct r "arith, associativity only" ar g.toTA 4
+  testIntersectionAgainstProduct r "arith, associativity only" (Serialize.renameGen ar) g.toTA 4
 
 def testRandom (r : Report) (rounds : Nat) : IO Report := do
   let mut r := r

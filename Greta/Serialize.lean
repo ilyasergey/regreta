@@ -145,16 +145,12 @@ def parseExamples (g : CFG) (src : String) : Except String (List TreeExample) :=
   return out
 
 /-- Product states are named `(q1,q2)` when the result is printed. -/
-def renamePairTA (A : TA (String × String)) : TA String :=
-  let nm := pairName id id
-  { states    := A.states.map nm
-    alphabet  := A.alphabet
-    terminals := A.terminals
-    finals    := A.finals.map nm
-    trans     := A.trans.map fun tr =>
-      ⟨nm tr.target, tr.sym, tr.rhs.map fun
-        | .term a  => .term a
-        | .state q => .state (nm q)⟩ }
+def renamePairTA {σ₁ σ₂ : Type} (f : σ₁ → String) (h : σ₂ → String) (A : TA (σ₁ × σ₂)) :
+    TA String :=
+  A.mapStates (pairName f h)
+
+/-- The states `GenTA` produces, under the names the reference implementation gives them. -/
+def renameGen (A : TA GState) : TA String := A.mapStates GState.name
 
 end Serialize
 end Greta
