@@ -14,15 +14,15 @@ Definitions A.1 to A.10; the Lean source cites them by that numbering.
 | `Greta/Basic.lean` | ranked symbols, `Beta`, transitions, trees, `TA`, the strong induction principle `Tree.rec'` |
 | `Greta/Closure.lean` | `EpsReach`, the saturation procedure, `TA.epsTable` and its correctness |
 | `Greta/Semantics.lean` | the bottom-up evaluator `TA.evalT`, acceptance, `TA.Lang` |
-| `Greta/CFG.lean` | grammars, parse trees, ambiguity, `CFG.toTA`, Theorem A.10 |
-| `Greta/Product.lean` | the product construction and `prodTA_lang` |
+| `Greta/CFG.lean` | grammars, parse trees, ambiguity, `CFG.toTA`, Theorem A.10 ([`CFG.toTA_correct`](../Greta/CFG.lean#L318)) |
+| `Greta/Product.lean` | the product construction and [`prodTA_lang`](../Greta/Product.lean#L377) |
 | `Greta/Order.lean` | levels of nonterminals, trivial symbols, `O_bp`, `HighToLow` |
 | `Greta/Examples.lean` | tree examples, `ParseTrees`, `P⁻`, `L⁻` |
 | `Greta/Learn.lean` | Algorithm 3.1 |
 | `Greta/GenTA.lean` | Algorithm 3.2 |
 | `Greta/Intersect.lean` | Algorithms 3.3 and 3.4, and the monotonicity lemmas |
-| `Greta/Soundness.lean` | Theorem 3.1 as two statements, Theorem 3.2 derived from them, the repair pipeline |
-| `Greta/GenTASpec.lean` | the shape of `A_r`; Theorem 3.1 proved; Theorem 3.2 with Theorem 3.1 discharged |
+| `Greta/Soundness.lean` | Theorem 3.1 as two statements ([`GenTASound₁`](../Greta/Soundness.lean#L46), [`GenTASound₂`](../Greta/Soundness.lean#L54)), Theorem 3.2 derived from them ([`greta_correct`](../Greta/Soundness.lean#L69)), the repair pipeline |
+| `Greta/GenTASpec.lean` | the shape of `A_r`; Theorem 3.1 proved ([`genTA_sound`](../Greta/GenTASpec.lean#L663)); Theorem 3.2 with Theorem 3.1 discharged ([`greta_correct_of_spec`](../Greta/GenTASpec.lean#L673)) |
 | `Greta/Serialize.lean` | the text format shared with the OCaml driver |
 | `Greta/Enumerate.lean` | bounded enumeration of accepted trees, used for language comparison |
 | `Greta/Test.lean` | the `selftest` suite |
@@ -55,14 +55,14 @@ constructor; only the closure may use it.
 
 The evaluator takes a closure table `tbl : σ → List σ`. This matters twice.
 
-`TA.evalT_congr` proves that the evaluator does not depend on which correct table is
+[`TA.evalT_congr`](../Greta/Semantics.lean#L204) proves that the evaluator does not depend on which correct table is
 supplied, so `TA.Lang` is well defined and can be computed with whichever table is
 convenient. For the product construction the convenient table is the product of the two
 component tables, which is what makes the evaluation lemma go through.
 
 `TA.epsTable` is the canonical table, computed by saturation. It is proved to compute
-`EpsReach` exactly (`TA.isEpsClosure_epsTable`). The termination argument is the usual
-finite-closure one, and it is spelled out: `saturate_closed` shows that a budget exceeding
+`EpsReach` exactly ([`TA.isEpsClosure_epsTable`](../Greta/Closure.lean#L248)). The termination argument is the usual
+finite-closure one, and it is spelled out: [`saturate_closed`](../Greta/Closure.lean#L178) shows that a budget exceeding
 the size of the state universe suffices, because each step that changes anything strictly
 increases the length of a duplicate-free list bounded by that universe.
 
@@ -82,8 +82,8 @@ Algorithm 3.3 as flags so that the ablations of Table 1 can be reproduced. The t
 related by testing: `lake exe greta selftest` checks, on the running example and on random
 grammars, that all five settings agree with the verified product on a corpus of trees.
 
-The soundness half of the reachability optimisation is proved: `evalT_mono` and
-`accepts_mono` say that removing transitions, shrinking the closure, or removing final
+The soundness half of the reachability optimisation is proved: [`evalT_mono`](../Greta/Intersect.lean#L231) and
+[`accepts_mono`](../Greta/Intersect.lean#L249) say that removing transitions, shrinking the closure, or removing final
 states can only shrink the language.
 
 ### Symbol names
@@ -95,6 +95,10 @@ names (the first terminal of the right-hand side, or the empty string) rather th
 paper's `δ`. This keeps the generated automata comparable byte for byte.
 
 ## Reading the main theorems
+
+[`CFG.toTA_correct`](../Greta/CFG.lean#L318) is Theorem A.10, [`prodTA_lang`](../Greta/Product.lean#L377) the
+product theorem, [`genTA_sound`](../Greta/GenTASpec.lean#L663) Theorem 3.1 and
+[`greta_correct_of_spec`](../Greta/GenTASpec.lean#L673) Theorem 3.2.
 
 ```lean
 theorem CFG.toTA_correct (g : CFG) (t : Tree) :
@@ -115,7 +119,7 @@ theorem greta_correct_of_spec (hspec : LearnedSpec g neg b oa op) (hfits : Fits 
 ```
 
 `g.repairedLang neg` is `L_g \ L⁻`: a complete parse tree of `g` that no unselected tree
-example rules out. `GenTASound₁` and `GenTASound₂` are the two statements of Theorem 3.1,
+example rules out. [`GenTASound₁`](../Greta/Soundness.lean#L46) and [`GenTASound₂`](../Greta/Soundness.lean#L54) are the two statements of Theorem 3.1,
 `L_r ⊇ L_g \ L⁻` and `L_r ∩ L⁻ = ∅`. The hypotheses are explained in
 [`divergences.md`](divergences.md).
 

@@ -39,7 +39,7 @@ verified product in every test.
 | | Paper | Here | In practice |
 | --- | --- | --- | --- |
 | [1](#1-theorem-31-needs-acyclicity) | Theorem 3.1 holds unconditionally | it holds when `HighToLow` reports nothing | **real restriction.** On a grammar with a cycle, one round of repair can leave a rejected tree in the language. The paper's proof excludes the case. |
-| [2](#2-algorithm-31s-inputs-get-a-specification) | `O_a`, `O_p` are whatever the earlier stages produce | `LearnedSpec`, `Fits`, `Covers` say what they must satisfy | bookkeeping. Implied by the definitions; one clause is easy to lose in an implementation. |
+| [2](#2-algorithm-31s-inputs-get-a-specification) | `O_a`, `O_p` are whatever the earlier stages produce | [`LearnedSpec`](../Greta/GenTASpec.lean#L233), [`Fits`](../Greta/GenTASpec.lean#L467), [`Covers`](../Greta/GenTASpec.lean#L594) say what they must satisfy | bookkeeping. Implied by the definitions; one clause is easy to lose in an implementation. |
 | [3](#3-lemma-b1-gains-a-child-position) | Lemma B.1 relates two symbols | it relates two symbols at a child position | the published lemma cannot cover associativity examples; the restated one does. |
 | [4](#4-lemma-b2-is-about-the-published-algorithm-31) | Lemma B.2 is about Greta | it is about Algorithm 3.1 as printed, not as shipped | the shipped learner is a different algorithm; its correctness is not established here. |
 | [5](#5-theorem-32-is-about-the-product-construction) | Theorem 3.2 is about Algorithm 3.3's output | it is about the product construction | Algorithm 3.3 agrees with the product in every test; not proved. |
@@ -111,7 +111,7 @@ S → T → (S + S) * S
 ```
 
 is accepted by `A_r`, is a parse tree of the grammar, and contains the rejected pattern.
-`testCycle` in `Greta/Test.lean` checks all three facts. The repaired grammar
+[`testCycle`](../Greta/Test.lean#L277) checks all three facts. The repaired grammar
 `lake exe greta repair` prints keeps the production `(e0,T) → (e0,S) STAR (e0,S)`, so one
 round of repair does not remove the ambiguity the user pointed at. What the outer loop of
 Figure 4 does next is outside the formalisation.
@@ -187,7 +187,7 @@ statement here is about the paper's algorithm. A proof about the shipped one wou
 different, reachability-flavoured invariant, and none is given here.
 
 [`shift_mono`](../Greta/Soundness.lean#L25) is B.2's arithmetic core. B.2 itself is not
-separately stated: what statement (1) needs is `Fits`, the same idea localised to one
+separately stated: what statement (1) needs is [`Fits`](../Greta/GenTASpec.lean#L467), the same idea localised to one
 parent/child pair.
 
 ## 5. Theorem 3.2 is about the product construction

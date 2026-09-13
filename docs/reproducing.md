@@ -60,7 +60,7 @@ The script runs three comparisons and writes every intermediate file to `test/ou
    reference renames product states, so its result is compared **by language**:
    `lake exe greta checkinter A B RESULT 5` enumerates trees of depth at most 5 from `A`, `B`
    and `RESULT` and checks that `RESULT` accepts a tree exactly when the verified product
-   `prodTA A B` does. Because `prodTA_lang` is proved, a disagreement is a defect in the
+   `prodTA A B` does. Because [`prodTA_lang`](../Greta/Product.lean#L377) is proved, a disagreement is a defect in the
    reference.
 
 Cases listed in `test/expected-divergences.txt` are reported as `known`; the script exits

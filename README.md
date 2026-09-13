@@ -2,47 +2,59 @@
 
 A Lean 4 formalisation of *Grammar Repair with Examples and Tree Automata* (Yunjeong Lee,
 Gokul Rajiv, Ilya Sergey, OOPSLA 2026), and a differential test of the formalised
-algorithms against [Greta](https://github.com/verse-lab/greta), the paper's OCaml
-implementation.
+algorithms against Greta, the paper's OCaml implementation.
 
-**Start with [`docs/divergences.md`](docs/divergences.md).** It states where the theorems
-proved here differ from the theorems the paper prints, how each difference is dealt with,
-and whether any finding invalidates a claim of the paper. In one paragraph: Theorem 3.2
-holds as stated. Theorem 3.1 does not hold as stated; it needs the side condition that the
-grammar has no cycle in its symbol order, which is the case the paper's own proof declares
-out of scope, and a five-production grammar shows the condition is necessary. Under that
-condition, and four bookkeeping conditions the paper's definitions already imply, both
-halves of Theorem 3.1 are proved. Nothing found here changes the algorithms; two of the
-defects found in the OCaml implementation are in code the paper does not describe.
+* The paper: [ACM DL, 10.1145/3798242](https://dl.acm.org/doi/10.1145/3798242).
+* The extended version, with the supplementary material:
+  [arXiv:2602.18166](https://arxiv.org/abs/2602.18166).
+* The implementation: [Greta](https://github.com/verse-lab/greta) at commit
+  [`a62d6b6`](https://github.com/verse-lab/greta/tree/a62d6b68a92178eb2f1bd57b620386e5a2cdc1b6),
+  the head of its `main` branch on 5 March 2026.
 
-## Contribution
+## Overview
 
-* **The theory of Sections 2 and 3, machine-checked.** Context-free grammars, the tree
-  automata with ε-transitions the paper uses, the translation from a grammar to an
-  automaton, the product of two automata, tree examples and the excluded language. The
-  correctness theorems are proved: Theorem A.10 (the translation), the product theorem,
-  Theorem 3.1 (soundness of `GenTA`, with side conditions) and Theorem 3.2 (correctness of
-  Greta). No `sorry`; the only axioms are Lean's `propext`, `Classical.choice` and
-  `Quot.sound` (`scripts/check-axioms.sh`, run on CI).
-* **The algorithms of Section 3, executable.** `LearnOaOp`, `GenTA`, `IntersectTA` with the
-  three ablations of Table 1, and `FindDupStates`, as Lean definitions that compile to a
-  command-line tool. On the paper's running example the tool reproduces Figure 6, the
-  `O_bp` and `O_p` of Section 2.3, and Figure 7 transition for transition.
-* **A comparison with the reference implementation.** The Lean tool and a driver built on
-  Greta's own modules read the same inputs and print the same format. Greta is pinned at
-  commit [`a62d6b6`](https://github.com/verse-lab/greta/tree/a62d6b68a92178eb2f1bd57b620386e5a2cdc1b6),
-  the head of its `main` branch on 5 March 2026; it is fetched at build time, not vendored.
+* The theory of Sections 2 and 3 is machine-checked: grammars, tree automata with
+  ε-transitions, the grammar-to-automaton translation, the product construction, and the
+  correctness theorems (Theorem A.10, the product theorem, Theorems 3.1 and 3.2). No `sorry`;
+  only Lean's standard axioms.
+* The algorithms of Section 3 are executable Lean definitions, compiled to a command-line tool
+  that reproduces the paper's running example (Figures 6 and 7, Section 2.3).
+* The tool is compared against the reference OCaml implementation on the same inputs.
+
+What was found, in brief; [`docs/divergences.md`](docs/divergences.md) has the details.
+
+* Theorem 3.2 holds as stated.
+* Theorem 3.1 does not hold as stated. It needs the grammar's symbol order to have no
+  cycle, the case the paper's own proof declares out of scope; a five-production grammar
+  shows the condition is necessary. With it, and four bookkeeping conditions the paper's
+  definitions already imply, both halves are proved.
+* Nothing found changes the algorithms. Two of the defects found in the OCaml implementation
+  are in code the paper does not describe.
 
 Where the paper and the OCaml code disagree, the formalisation follows the paper. Symbol
 naming follows the code so that printed automata can be compared byte for byte. Section,
 figure, algorithm and theorem numbers below are those of the paper's main body; Definitions
 A.n and Lemmas B.n are in its supplementary material.
 
+## Documents
+
+* [`docs/divergences.md`](docs/divergences.md): where the theorems proved here differ from
+  the paper's, and what each difference means.
+* [`docs/structure.md`](docs/structure.md): how the Lean development is laid out and why.
+* [`docs/testing.md`](docs/testing.md): the Lean test suite and the text format shared with
+  the OCaml driver.
+* [`docs/reproducing.md`](docs/reproducing.md): how to run the comparison with the
+  reference implementation.
+* [`docs/reference-defects.md`](docs/reference-defects.md): defects found in the OCaml
+  implementation, and what a fix would look like.
+
 ## What is formalised
 
 *Proved* is a complete Lean proof. *Proved under assumptions* links to the section of
 [`docs/divergences.md`](docs/divergences.md) that states the assumptions and why they are
-there. *Executable* definitions also run, through `lake exe greta`.
+there. *Executable* definitions also run, through `lake exe greta`. Definitions A.n,
+Theorem A.10 and Lemmas B.n are in the paper's supplementary material, which is part of the
+extended version at [arXiv:2602.18166](https://arxiv.org/abs/2602.18166).
 
 | Paper | Lean | Status |
 | --- | --- | --- |
@@ -63,8 +75,8 @@ there. *Executable* definitions also run, through `lake exe greta`.
 | Algorithm 3.4, `FindDupStates` | [`findDupStates`](Greta/Intersect.lean#L99) | executable |
 | Lemma B.1, `O_p` against `L_r` | [`epsReach_lvl`](Greta/GenTASpec.lean#L160), [`evalT_genTA_inv`](Greta/GenTASpec.lean#L178) | proved, restated ([§3](docs/divergences.md#3-lemma-b1-gains-a-child-position)) |
 | Lemma B.2, orders of non-conflicting symbols | [`shift_mono`](Greta/Soundness.lean#L25) | arithmetic core proved; replaced by `Fits` ([§4](docs/divergences.md#4-lemma-b2-is-about-the-published-algorithm-31)) |
-| Theorem 3.1(2), `L_r ∩ L⁻ = ∅` | [`genTA_sound₂`](Greta/GenTASpec.lean#L341) | proved under assumptions ([§1](docs/divergences.md#1-theorem-31-needs-acyclicity), [§2](docs/divergences.md#2-algorithm-31s-inputs-get-a-specification)) |
 | Theorem 3.1(1), `L_r ⊇ L_g \ L⁻` | [`genTA_sound₁`](Greta/GenTASpec.lean#L630) | proved under assumptions ([§1](docs/divergences.md#1-theorem-31-needs-acyclicity), [§2](docs/divergences.md#2-algorithm-31s-inputs-get-a-specification)) |
+| Theorem 3.1(2), `L_r ∩ L⁻ = ∅` | [`genTA_sound₂`](Greta/GenTASpec.lean#L341) | proved under assumptions ([§1](docs/divergences.md#1-theorem-31-needs-acyclicity), [§2](docs/divergences.md#2-algorithm-31s-inputs-get-a-specification)) |
 | Theorem 3.2, correctness of Greta | [`greta_correct_of_spec`](Greta/GenTASpec.lean#L673) | proved, for the product construction ([§5](docs/divergences.md#5-theorem-32-is-about-the-product-construction)) |
 
 ## Building and running
