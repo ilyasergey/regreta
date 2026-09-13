@@ -1,6 +1,6 @@
 #!/bin/sh
 # Differential test: run the Lean formalisation and the OCaml reference implementation on
-# the same inputs and compare.  See docs/testing.md and docs/divergences.md.
+# the same inputs and compare.  See docs/testing.md and docs/reference-defects.md.
 #
 #   scripts/difftest.sh             run every check
 #   GRETA_REF_TIMEOUT=60 ...        change the watchdog on the reference implementation

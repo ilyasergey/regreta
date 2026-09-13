@@ -1,9 +1,17 @@
-# Proving what is not yet proved
+# Proof plan
 
-[`greta_correct`](../Greta/Soundness.lean#L87) (Theorem 3.2) takes the two halves of
-Theorem 3.1 as hypotheses. This note is a plan for discharging them, and for the two
-smaller gaps: the language-preservation of the optimisations in Algorithm 3.3, and
-Lemma B.2.
+**Status.** Steps 1–6 below are done: `Greta/GenTASpec.lean` carries them out and
+[`genTA_sound`](../Greta/GenTASpec.lean#L667) proves both halves of Theorem 3.1, so
+[`greta_correct_of_spec`](../Greta/GenTASpec.lean#L677) derives Theorem 3.2 with no
+language-level hypothesis left. What the plan called side conditions became the explicit
+hypotheses of those theorems; [`divergences.md`](divergences.md) lists them.
+
+What remains open is the last section of this note: that Algorithm 3.3, the optimised
+intersection, has the same language as the product construction. That is still covered by
+testing only.
+
+The rest of this note is the plan as written before the proofs, kept because it explains
+why the proofs are shaped the way they are.
 
 It also records the six side conditions and clarifications that Theorem 3.1 turns out to
 need. Most of them are hypotheses that the paper's own definitions already supply and that
@@ -128,7 +136,7 @@ of [`relayerOrder`](../Greta/Learn.lean#L38) over the conflict groups:
   show that `relayerOrder` only ever moves an order by a `shift`, and that the
   non-conflicting symbols of the order being re-layered are re-inserted at *every* order
   it creates. That second clause is exactly the line of Algorithm 3.1 that the reference
-  implementation does not implement — see [D7](divergences.md#d7-algorithm-31-as-printed-is-not-what-learnerml-does).
+  implementation does not implement — see [D7](reference-defects.md#d7-algorithm-31-as-printed-is-not-what-learnerml-does).
 
 **Step 6 — the level assignment.** Given `t ∈ L_g \ L⁻`, construct a run of `A_r` on `t`
 top-down: assign the root the smallest order its symbol has in `O_p`, and each child the
@@ -375,7 +383,7 @@ step preserves the language, which composes.
 Steps 1–4 and Lemma B.1 are mechanical: a few hundred lines, no new ideas, and they are
 worth doing first because they make every subsequent statement a statement about natural
 numbers. Step 5 is where the difficulty is, and it is where
-[D7](divergences.md#d7-algorithm-31-as-printed-is-not-what-learnerml-does) bites: the
+[D7](reference-defects.md#d7-algorithm-31-as-printed-is-not-what-learnerml-does) bites: the
 published Algorithm 3.1 has the invariant that Lemma B.2 needs, the implemented one
 replaces it with back-edges, so a proof about the code as written needs a different,
 reachability-flavoured invariant. Fixing the code to match the paper makes the proof

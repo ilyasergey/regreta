@@ -57,7 +57,7 @@ with status 124 when it fires.
 
 Cases that are known to diverge are listed in `test/expected-divergences.txt` and reported
 as `known` rather than as failures; the script exits non-zero only when something new
-diverges, or when a listed case starts agreeing. `docs/divergences.md` explains each one.
+diverges, or when a listed case starts agreeing. `docs/reference-defects.md` explains each one.
 
 ## The text format
 

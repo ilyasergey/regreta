@@ -19,9 +19,9 @@ The development has two halves.
   that runs on the same inputs as the OCaml tool and can be compared with it.
 
 There are no `sorry`s and no axioms beyond Lean's own `propext`, `Classical.choice` and
-`Quot.sound` (`scripts/check-axioms.sh`). Where the paper's proof is not formalised, the
-statement appears as an explicit hypothesis rather than as an assumption buried in a
-proof — see [Status of the proofs](#status-of-the-proofs).
+`Quot.sound` (`scripts/check-axioms.sh`). Both halves of Theorem 3.1 and all of Theorem
+3.2 are proved; Theorem 3.1 carries five decidable side conditions, which
+[`docs/divergences.md`](docs/divergences.md) explains.
 
 ## What is formalised
 
@@ -41,11 +41,13 @@ proof — see [Status of the proofs](#status-of-the-proofs).
 | Algorithm 3.1, `LearnOaOp` | [`learnOaOp`](Greta/Learn.lean#L57), [`relayerOrder`](Greta/Learn.lean#L38) | executable definition |
 | Algorithm 3.2, `GenTA` | [`genTA`](Greta/GenTA.lean#L38), [`fillRhs`](Greta/GenTA.lean#L22) | executable definition |
 | Algorithm 3.3, `IntersectTA`, ablations of Table 1 | [`intersectTA`](Greta/Intersect.lean#L168), [`IntersectOpts`](Greta/Intersect.lean#L151) | executable definition; agreement with `prodTA` is **tested, not proved** |
-| Algorithm 3.3, a sub-automaton accepts no more | [`accepts_mono`](Greta/Intersect.lean#L249), [`evalT_mono`](Greta/Intersect.lean#L231) | **proved**; this is the soundness half of the reachability restriction |
+| Algorithm 3.3, a sub-automaton accepts no more | [`accepts_mono`](Greta/Intersect.lean#L249), [`evalT_mono`](Greta/Intersect.lean#L231) | **proved**; the soundness half of the reachability restriction |
 | Algorithm 3.4, `FindDupStates` | [`findDupStates`](Greta/Intersect.lean#L99) | executable definition |
-| §3.1.4, Theorem 3.1, soundness of `GenTA` | [`GenTASound₁`](Greta/Soundness.lean#L66), [`GenTASound₂`](Greta/Soundness.lean#L73) | **stated, not proved**; used as hypotheses of Theorem 3.2 |
-| §3.2, Theorem 3.2, correctness of Greta | [`greta_correct`](Greta/Soundness.lean#L87) | **proved**, from Theorem 3.1 and the two results above |
-| Lemma B.2 (supplementary material) | [`shift_mono`](Greta/Soundness.lean#L31) | its arithmetic core **proved**; the lemma itself not proved |
+| §2.2, the shape of `A_r`: ε-reachability is `≤` on levels | [`epsReach_lvl`](Greta/GenTASpec.lean#L161), [`evalT_genTA_inv`](Greta/GenTASpec.lean#L179) | **proved**; this is Lemma B.1's content |
+| §3.1.4, Theorem 3.1(2), `L_r ∩ L⁻ = ∅` | [`genTA_sound₂`](Greta/GenTASpec.lean#L343) | **proved** under `LearnedSpec` and acyclicity |
+| §3.1.4, Theorem 3.1(1), `L_r ⊇ L_g \ L⁻` | [`genTA_sound₁`](Greta/GenTASpec.lean#L634) | **proved** under `Fits`, `Covers` and acyclicity |
+| §3.2, Theorem 3.2, correctness of Greta | [`greta_correct_of_spec`](Greta/GenTASpec.lean#L677) | **proved**, from the two above and `prodTA_lang` |
+| Lemma B.2 (supplementary material) | [`shift_mono`](Greta/Soundness.lean#L31) | its arithmetic core **proved**; superseded by [`Fits`](Greta/GenTASpec.lean#L470) |
 
 Every entry marked **proved** is a complete Lean proof. Entries marked *definition* are
 formalised but carry no theorem of their own; *executable* means the definition also runs,
@@ -53,47 +55,43 @@ via `lake exe greta`.
 
 ## Status of the proofs
 
-Three results carry the development.
+Four results carry the development.
 
-[`CFG.toTA_correct`](Greta/CFG.lean#L227) says that the automaton built from a grammar
-accepts exactly that grammar's complete parse trees, which is what makes the whole
-approach of Section 2.2 legitimate. The supplementary material proves it in one line
-("Follows directly from the construction"); here it is an induction over trees that has to
-line up the automaton's children-matching with the grammar's right-hand sides.
+[`CFG.toTA_correct`](Greta/CFG.lean#L227) says the automaton built from a grammar accepts
+exactly that grammar's complete parse trees, which is what makes the approach of §2.2
+legitimate. The supplementary material proves it in one line ("Follows directly from the
+construction"); here it is an induction over trees that has to line up the automaton's
+children-matching with the grammar's right-hand sides.
 
-[`prodTA_lang`](Greta/Product.lean#L377) says that the product of two tree automata
-recognises the intersection of their languages. This is the mathematical content of
-Theorem 3.2. Handling ε-transitions is the delicate part: the ε-closure of a product
-state has to be shown to be the product of the component closures
-([`isEpsClosure_prodTable`](Greta/Product.lean#L135)) before the evaluation lemma
-([`mem_evalT_prod`](Greta/Product.lean#L335)) can be proved by induction.
+[`prodTA_lang`](Greta/Product.lean#L377) says the product of two tree automata recognises
+the intersection of their languages — the mathematical content of Theorem 3.2. Handling
+ε-transitions is the delicate part: the ε-closure of a product state has to be shown to be
+the product of the component closures before the evaluation lemma can be proved.
 
-[`greta_correct`](Greta/Soundness.lean#L87) is Theorem 3.2, proved the way the paper
-proves it ("Follows from Theorem 3.1 and set intersection"). Given the two halves of
-Theorem 3.1 as hypotheses, intersecting the learned automaton with the grammar's automaton
-recognises exactly `L_g \ L⁻`.
+[`genTA_sound`](Greta/GenTASpec.lean#L667) is Theorem 3.1, both halves. The proof does not
+reason about languages directly: it pins down the transitions `GenTA` emits, shows the
+ε-graph is the chain `e₀ ←ε e₁ ←ε … ←ε eₘ`, and deduces that ε-reachability between
+ordered states is `≤` on levels. After that every argument is arithmetic. Statement (2)
+follows by induction over the tree; statement (1) builds a run by assigning levels
+top-down.
 
-Theorem 3.1 itself is not proved. Its published argument reasons informally about the
-shape of the automaton `GenTA` produces and excludes some cases outright ("Cases of
-symbols at adjacent levels which are involved in a conflict … are explicitly not handled
-by the algorithm"). Rather than invent a proof the paper does not give, its two halves are
-stated as [`GenTASound₁`](Greta/Soundness.lean#L66) and
-[`GenTASound₂`](Greta/Soundness.lean#L73) and used as hypotheses, so what the formalised
-part of Theorem 3.2 rests on is visible in the statement.
+[`greta_correct_of_spec`](Greta/GenTASpec.lean#L677) is Theorem 3.2, assembled from the
+three. No hypothesis about languages remains: what is left are five decidable conditions
+on the learned order — [`LearnedSpec`](Greta/GenTASpec.lean#L235),
+[`Fits`](Greta/GenTASpec.lean#L470), [`Covers`](Greta/GenTASpec.lean#L598), that no start
+nonterminal is trivial, and that `HighToLow` reports nothing.
 
-The three optimisations of Algorithm 3.3 are likewise not proved language-preserving.
-[`evalT_mono`](Greta/Intersect.lean#L231) and
-[`accepts_mono`](Greta/Intersect.lean#L249) prove that shrinking an automaton shrinks its
-language, which is the soundness half of the reachability restriction; the rest is covered
-by testing against the verified product construction.
+That last one is a real restriction rather than a technicality, and it is the case the
+paper's own proof of Lemma B.1 sets aside: *"Cases of symbols at adjacent levels which are
+involved in a conflict … are explicitly not handled by the algorithm."*
+[`docs/divergences.md`](docs/divergences.md) goes through every place the statements here
+differ from the paper's.
 
-[`docs/proof-plan.md`](docs/proof-plan.md) sets out how to close these gaps: the shape
-lemmas about `GenTA`'s output that turn Lemma B.1 into arithmetic on levels, the
-specification of `LearnOaOp` that Theorem 3.1(1) needs, the bisimulations the three
-optimisations need — and the six side conditions Theorem 3.1 turns out to need. Four of
-them are hypotheses that Section 3's own definitions supply; two are genuine gaps, both
-about the cycle transitions that `HighToLow` introduces, and the published proof of
-Lemma B.1 concedes one of them in passing.
+What is **not** proved is that Algorithm 3.3 — the optimised intersection Greta actually
+runs — has the same language as the product construction.
+[`evalT_mono`](Greta/Intersect.lean#L231) and [`accepts_mono`](Greta/Intersect.lean#L249)
+give the soundness half of the reachability restriction; the rest is covered by testing
+against the verified product, and `docs/proof-plan.md` sets out what proving it would take.
 
 ## Building
 
@@ -172,9 +170,8 @@ tested. The intersection of Algorithm 3.3 does not: on the paper's own running e
 silently drops every `if … then … else` statement, and with its arguments in the other
 order it does not terminate.
 
-[`docs/divergences.md`](docs/divergences.md) is the write-up: every divergence found
-between the paper, the reference implementation and this formalisation, each with a
-reproducer, a diagnosis, and a suggested fix.
+[`docs/reference-defects.md`](docs/reference-defects.md) is the write-up: each defect with
+a reproducer, a diagnosis and a suggested fix.
 
 ## Layout
 
@@ -184,7 +181,8 @@ Main.lean         the command-line driver
 ocaml-ref/        driver for the OCaml reference implementation
 scripts/          differential-testing harness and the axiom check
 test/             grammars, tree examples and automata used by the tests
-docs/             design notes, the testing setup, the divergences, and a proof plan
+docs/             design notes, testing, divergences from the paper, defects found
+                  in the reference implementation, and a plan for the last gap
 ```
 
 ## References
