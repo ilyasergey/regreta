@@ -10,6 +10,8 @@ import Greta
 #print axioms Greta.CFG.toTA_correct
 #print axioms Greta.prodTA_lang
 #print axioms Greta.greta_correct
+#print axioms Greta.genTA_sound
+#print axioms Greta.greta_correct_of_spec
 #print axioms Greta.accepts_mono
 LEAN
 cd "$root" && lake env lean "$tmp"
