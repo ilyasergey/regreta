@@ -100,8 +100,10 @@ lake exe greta genta  test/grammars/running-example.cfg test/examples/running-ex
 lake exe greta repair test/grammars/running-example.cfg test/examples/running-example.ex  # the repaired grammar
 ```
 
-[`docs/structure.md`](docs/structure.md) describes the Lean development;
-[`docs/testing.md`](docs/testing.md) the self-test and the text format.
+[`docs/structure.md`](docs/structure.md) describes the Lean development,
+[`docs/testing.md`](docs/testing.md) the self-test and the text format, and
+[`docs/complexity.md`](docs/complexity.md) the paper's complexity claims, which are not
+formalised.
 
 ## Testing against the OCaml implementation
 
@@ -139,7 +141,7 @@ ocaml-ref/        driver over the reference implementation's own modules
 scripts/          differential test, axiom check, link check
 test/             grammars, tree examples and automata used by both test suites
 docs/             divergences from the paper, defects in the reference, structure,
-                  testing, and how to reproduce the comparison
+                  testing, how to reproduce the comparison, complexity claims
 ```
 
 ## References
