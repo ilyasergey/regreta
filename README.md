@@ -87,6 +87,12 @@ The three optimisations of Algorithm 3.3 are likewise not proved language-preser
 language, which is the soundness half of the reachability restriction; the rest is covered
 by testing against the verified product construction.
 
+[`docs/proof-plan.md`](docs/proof-plan.md) sets out how to close these gaps: the shape
+lemmas about `GenTA`'s output that turn Lemma B.1 into arithmetic on levels, the
+specification of `LearnOaOp` that Theorem 3.1(1) needs, the bisimulations the three
+optimisations need — and the two places where the published statements have to be changed
+before they can be proved at all.
+
 ## Building
 
 Lean 4.33.1 and Mathlib; `elan` picks the toolchain up from `lean-toolchain`.
@@ -176,7 +182,7 @@ Main.lean         the command-line driver
 ocaml-ref/        driver for the OCaml reference implementation
 scripts/          differential-testing harness and the axiom check
 test/             grammars, tree examples and automata used by the tests
-docs/             design and testing notes, and the list of divergences
+docs/             design notes, the testing setup, the divergences, and a proof plan
 ```
 
 ## References

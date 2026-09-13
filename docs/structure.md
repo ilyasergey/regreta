@@ -27,6 +27,9 @@ numbering, and this note gives the corresponding section of the main body alongs
 | `Greta/Enumerate.lean` | bounded enumeration of accepted trees, used for language comparison |
 | `Greta/Test.lean` | the `selftest` suite |
 
+What is proved and what is not is set out in the README; `proof-plan.md` is a plan for
+closing the gaps.
+
 `Greta/Soundness.lean` also defines [`repairOnce`](../Greta/Soundness.lean#L122), one round
 of the repair loop of Figure 4, and `repairOnceSpec`, the same round with the verified
 product in place of Algorithm 3.3; `repairOnceSpec_correct` is Theorem 3.2 applied to it.
