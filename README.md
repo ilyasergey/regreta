@@ -47,6 +47,8 @@ A.n and Lemmas B.n are in its supplementary material.
   reference implementation.
 * [`docs/reference-defects.md`](docs/reference-defects.md): defects found in the OCaml
   implementation, and what a fix would look like.
+* [`docs/complexity.md`](docs/complexity.md): the paper's complexity claims, which are
+  not formalised, and what proving them would need.
 
 ## What is formalised
 
@@ -100,10 +102,8 @@ lake exe greta genta  test/grammars/running-example.cfg test/examples/running-ex
 lake exe greta repair test/grammars/running-example.cfg test/examples/running-example.ex  # the repaired grammar
 ```
 
-[`docs/structure.md`](docs/structure.md) describes the Lean development,
-[`docs/testing.md`](docs/testing.md) the self-test and the text format, and
-[`docs/complexity.md`](docs/complexity.md) the paper's complexity claims, which are not
-formalised.
+[`docs/structure.md`](docs/structure.md) describes the Lean development;
+[`docs/testing.md`](docs/testing.md) the self-test and the text format.
 
 ## Testing against the OCaml implementation
 
