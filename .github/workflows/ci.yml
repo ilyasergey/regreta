@@ -1,0 +1,21 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leanprover/lean-action@v1
+        with:
+          build-args: "--wfail"
+      - name: self-test
+        run: lake exe greta selftest
+      - name: axioms
+        run: ./scripts/check-axioms.sh
+      - name: markdown links
+        run: ./scripts/check-links.sh
