@@ -1,8 +1,7 @@
 /-
-The shape of the automaton `GenTA` produces, and Theorem 3.1(2) proved from it.
+The shape of the automaton `GenTA` produces, and Theorem 3.1 proved from it.
 
-The strategy is the one set out in `docs/proof-plan.md`: rather than reasoning about the
-language of `A_r` directly, pin down its transitions (`mem_nonTrivTrans` and friends),
+Rather than reasoning about the language of `A_r` directly, pin down its transitions (`mem_nonTrivTrans` and friends),
 show that its ε-graph is the chain `e_0 ←ε e_1 ←ε … ←ε e_m`, and deduce that
 ε-reachability between ordered states is `≤` on levels (`epsReach_lvl`).  After that every
 argument is arithmetic on levels.
@@ -228,9 +227,8 @@ theorem oaFill_of_mem (oa : Oa) (s : Sym) (i k : Nat) (h : k ∈ oa.positionsOf 
 /-! ### What `LearnOaOp` has to deliver -/
 
 /--
-The properties of the learned `(O_a, O_p)` that Theorem 3.1(2) uses.  Each clause is one
-of the side conditions of `docs/divergences.md`; `S2` and `S4` there explain why they are
-hypotheses rather than facts about `learnOaOp`.
+The properties of the learned `(O_a, O_p)` that Theorem 3.1(2) uses.  `docs/divergences.md`
+explains why they are hypotheses rather than facts proved about `learnOaOp`.
 -/
 structure LearnedSpec (g : CFG) (neg : List TreeExample) (b : Bool) (oa : Oa) (op : OrderMap) :
     Prop where
@@ -377,8 +375,7 @@ end
 
 For the other half a run has to be *built*, which needs the ε-chain in the other direction
 and a guarantee that a child symbol always has a level at or above the one its parent's
-transition demands.  The latter is `Fits`, the local condition `S6` of
-`docs/divergences.md` discusses.
+transition demands.  The latter is `Fits`; see `docs/divergences.md`.
 -/
 
 theorem mem_genTA_epsEdges {g : CFG} {oa : Oa} {op : OrderMap} {b : Bool} {i : Nat}
@@ -464,7 +461,7 @@ theorem trivSyms_of_mem_trivNts {g : CFG} {b : Bool} {A : Nonterminal}
 /-! ### The local condition Theorem 3.1(1) needs -/
 
 /--
-`S6` of `docs/divergences.md`: a symbol that may legitimately sit at child position `k` of
+A symbol that may legitimately sit at child position `k` of
 an `s`-node at level `i` has a level at or above the one the transition demands.
 -/
 def Fits (g : CFG) (neg : List TreeExample) (b : Bool) (oa : Oa) (op : OrderMap) : Prop :=
@@ -489,8 +486,7 @@ variable {g : CFG} {neg : List TreeExample} {b : Bool} {oa : Oa} {op : OrderMap}
 
 /--
 Every parse tree that no tree example rules out is accepted by `A_r`, at any level of its
-root symbol.  This is the level assignment of Step 6 of `docs/proof-plan.md`, built
-top-down: `Fits` supplies a level for each child at or below the one its parent's
+root symbol.  The run is built top-down: `Fits` supplies a level for each child at or below the one its parent's
 transition demands, and the ε-chain promotes it.
 -/
 theorem run_exists (hfits : Fits g neg b oa op) :

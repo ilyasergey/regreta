@@ -1,11 +1,13 @@
 # Cases where the OCaml reference implementation is known to disagree with, or fail on,
 # inputs that the verified formalisation handles.  Each one is explained in
-# docs/divergences.md.  The differential harness reports these as "known"; anything not
+# docs/reference-defects.md.  The differential harness reports these as "known"; anything not
 # listed here that diverges is reported as a failure.
 unreachable: cfg2ta
 unreachable: obp
 arith: A_g with A_r
 arith: A_r with A_g
+cycle: A_g with A_r
+cycle: A_r with A_g
 dangling-else: A_g with A_r
 dangling-else: A_r with A_g
 running-example: A_g with A_r

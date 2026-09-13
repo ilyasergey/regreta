@@ -1,21 +1,15 @@
 /-
-Soundness of the Greta pipeline: Theorem 3.1 (Soundness of GenTA) and Theorem 3.2
-(Correctness of Greta), together with the arithmetic core of Lemma B.2.
+Theorem 3.1 (Soundness of GenTA) as two statements, Theorem 3.2 (Correctness of Greta)
+derived from them, and the repair pipeline of Figure 4.
 
-What is machine-checked here:
-
-* `Greta.CFG.toTA_correct` (Theorem A.10) and `Greta.prodTA_lang` (intersection of tree
-  automata) are proved outright, in `Greta.CFG` and `Greta.Product`.
-* `greta_correct` below derives Theorem 3.2 from them *and* from the two statements of
-  Theorem 3.1, exactly as the paper does ("Follows from Theorem 3.1 and set
-  intersection").  The two statements of Theorem 3.1 appear as explicit hypotheses.
+* `GenTASound₁` and `GenTASound₂` are the two halves of Theorem 3.1.  `Greta.GenTASpec`
+  proves them for the automaton `genTA` returns, under the side conditions listed in
+  `docs/divergences.md`.
+* `greta_correct` derives Theorem 3.2 from them, from `Greta.CFG.toTA_correct` (Theorem
+  A.10) and from `Greta.prodTA_lang`, exactly as the paper does ("Follows from Theorem 3.1
+  and set intersection").
 * `shift_mono` is the arithmetic fact underlying Lemma B.2: re-layering the precedence
   order never inverts the relative order of two symbols.
-
-Theorem 3.1 itself is *not* proved here.  Its published proof argues informally about the
-shape of the automaton produced by `GenTA`, and it explicitly excludes some cases
-("Cases of symbols at adjacent levels which are involved in a conflict … are explicitly
-not handled by the algorithm"); see `docs/divergences.md`.
 -/
 import Greta.GenTA
 import Greta.Intersect
@@ -43,21 +37,7 @@ theorem pushN_eq_shift (m : OrderMap) (o n : Nat) :
   funext p
   split <;> simp_all
 
-/-! ### Lemma B.1 and Theorem 3.1, as statements -/
-
-/--
-Lemma B.1 relates the learned precedence order to the language of the learned automaton:
-for two symbols involved in a precedence conflict, `s₁` may sit directly above `s₂` in a
-tree of `L_r` exactly when `s₁`'s order does not exceed `s₂`'s.
-
-We state the *right-to-left* half, which is the one used to prove Theorem 3.1(2): if the
-learned order puts `s₁` strictly below `s₂`, no tree of `L_r` has `s₁` directly above
-`s₂`.  `directlyAbove` is the pattern of a tree example.
--/
-def LemmaB1Stmt {σ : Type} [DecidableEq σ] (Ar : TA σ) (op : OrderMap) : Prop :=
-  ∀ (s₁ s₂ : Sym) (o₁ o₂ : Nat) (i : Nat),
-    o₁ ∈ op.ordersOf s₁ → o₂ ∈ op.ordersOf s₂ → o₂ < o₁ →
-    ∀ t : Tree, Ar.Lang t → (TreeExample.mk s₁ s₂ i).occursIn t = false
+/-! ### Theorem 3.1, as statements -/
 
 /--
 Theorem 3.1 (Soundness of GenTA), statement (1): the learned automaton keeps every parse

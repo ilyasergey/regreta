@@ -237,7 +237,7 @@ def arith : CFG where
 A symbol whose only conflict is with itself still has to be re-layered, so that `GenTA`
 has a level to send the forbidden child to.  Section 3 puts such a symbol in a singleton
 member of `S_E`; leaving it out leaves it at the top order, `e_{i+1}` does not exist, and
-every tree using the symbol is rejected.  See docs/proof-plan.md.
+every tree using the symbol is rejected.  See docs/divergences.md.
 -/
 def testAssocOnly (r : Report) : IO Report := do
   let g := arith
@@ -254,6 +254,42 @@ def testAssocOnly (r : Report) : IO Report := do
   r ← check r "the left-associative nesting is accepted" (ar.langB (plus (plus x x) x))
   r ← check r "the right-associative nesting is rejected" (!(ar.langB (plus x (plus x x))))
   testIntersectionAgainstProduct r "arith, associativity only" (Serialize.renameGen ar) g.toTA 4
+
+/-- `S -> S + S | T | x`, `T -> S * S | y`: `T` sits one level below `S` and nests it again. -/
+def cycleGrammar : CFG where
+  nonterms := ["S", "T"]
+  terms    := ["PLUS", "STAR", "X", "Y"]
+  starts   := ["S"]
+  prods    :=
+    [ ("S", [nt "S", tm "PLUS", nt "S"])        -- 0  (PLUS,3)
+    , ("S", [nt "T"])                           -- 1  (δ,1)
+    , ("S", [tm "X"])                           -- 2  (X,1)
+    , ("T", [nt "S", tm "STAR", nt "S"])        -- 3  (STAR,3)
+    , ("T", [tm "Y"]) ]                         -- 4  (Y,1)
+
+/--
+Theorem 3.1(2) as printed fails on a grammar with a cycle in the order.  `HighToLow`
+reports the `(STAR,3)` production, so `GenTA` adds `e1 <(STAR,3) e0 STAR e0`, and that
+transition accepts a `PLUS` directly under a `STAR` although the user rejected exactly that
+nesting.  This is the case the paper's proof of Lemma B.1 sets aside, and the reason
+`genTA_sound` carries the hypothesis `highToLow … = []`.  See docs/divergences.md.
+-/
+def testCycle (r : Report) : IO Report := do
+  let g := cycleGrammar
+  let neg : List TreeExample := [{ top := sym! g 3, bot := sym! g 0, idx := 0 }]
+  let obp := g.baseOrder
+  let (oa, op) := learnOaOp g neg (toMapOf obp neg)
+  let ar := genTA g oa op
+  let x := Tree.node (sym! g 2) [.leaf "X"]
+  let plus := fun a b => Tree.node (sym! g 0) [a, .leaf "PLUS", b]
+  let star := fun a b => Tree.node (sym! g 3) [a, .leaf "STAR", b]
+  let t := Tree.node (sym! g 1) [star (plus x x) x]
+  let mut r := r
+  r ← check r "the grammar has a cycle in the order" (!(g.highToLow obp op).isEmpty)
+  r ← check r "the witness is a parse tree the user excluded"
+        (g.isParseTree t && g.excludedLang neg t)
+  r ← check r "A_r nevertheless accepts it: Theorem 3.1(2) needs acyclicity" (ar.langB t)
+  return r
 
 def testRandom (r : Report) (rounds : Nat) : IO Report := do
   let mut r := r
@@ -274,6 +310,8 @@ def runAll : IO UInt32 := do
   r ← testRunningExampleIntersection r
   IO.println "associativity-only conflicts"
   r ← testAssocOnly r
+  IO.println "a cycle in the order"
+  r ← testCycle r
   IO.println "randomised intersection"
   r ← testRandom r 6
   IO.println s!"\n{r.passed} passed, {r.failed} failed"

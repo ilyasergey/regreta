@@ -13,7 +13,7 @@ paper ablates separately (`I¹`, `I²`, `I³` of Table 1) and each of which is a
   ones are replaced by a single ε-transition.
 
 `Greta.prodTA_lang` proves `L(A ⊗ B) = L(A) ∩ L(B)` for the textbook construction; the
-optimised algorithm below is checked against it by testing (see `docs/testing.md`).
+optimised algorithm below is checked against it by testing (see `docs/divergences.md`).
 -/
 import Greta.Product
 import Greta.CFG

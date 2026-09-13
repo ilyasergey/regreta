@@ -132,7 +132,7 @@ let usage =
   \  greta-ref intersect-debug ...  the same, with the reference tracing enabled\n"
 
 (* A watchdog: the reference implementation can loop forever on some inputs (see
-   ../docs/divergences.md), and we want the trace produced so far when that happens. *)
+   ../docs/reference-defects.md), and we want the trace produced so far when that happens. *)
 let install_watchdog () =
   match Sys.getenv_opt "GRETA_REF_TIMEOUT" with
   | None -> ()

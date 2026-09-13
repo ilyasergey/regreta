@@ -11,6 +11,7 @@ directories are ignored by git.
     ./fetch.sh          # clone upstream and stage the sources
     dune build          # build ./_build/default/driver/main.exe
 
-The driver speaks the same text format as `lake exe greta`; see `../docs/testing.md`.
+The driver speaks the same text format as `lake exe greta`; see `../docs/testing.md` for
+the format and `../docs/reproducing.md` for the comparison procedure.
 
 Upstream is MIT licensed, Copyright (c) 2022 Yunjeong Lee.
