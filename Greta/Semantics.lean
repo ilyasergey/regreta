@@ -58,6 +58,14 @@ def accepts (A : TA σ) (tbl : EpsTable σ) (t : Tree) : Bool :=
 /-- The language of `A`: the set of trees it accepts (Definition A.8). -/
 def Lang (A : TA σ) (t : Tree) : Prop := A.accepts A.epsTable t = true
 
+/-- Decision procedure for `TA.Lang`. -/
+def langB (A : TA σ) (t : Tree) : Bool := A.accepts A.epsTable t
+
+theorem lang_iff_langB (A : TA σ) (t : Tree) : A.Lang t ↔ A.langB t = true := Iff.rfl
+
+instance (A : TA σ) (t : Tree) : Decidable (A.Lang t) :=
+  decidable_of_iff _ (A.lang_iff_langB t).symm
+
 /-! ### The evaluator does not depend on the choice of ε-closure table -/
 
 theorem matchAll_congr {A : TA σ} {t₁ t₂ : EpsTable σ}

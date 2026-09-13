@@ -10,3 +10,5 @@ import Greta.GenTA
 import Greta.Intersect
 import Greta.Soundness
 import Greta.Serialize
+import Greta.Enumerate
+import Greta.Test

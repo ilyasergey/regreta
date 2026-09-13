@@ -1,0 +1,6 @@
+# L(A) = { a, g(a), g(g(a)), ... }
+states p
+finals p
+terminals g a
+trans p 0 g 2 T:g S:p
+trans p 1 a 1 T:a

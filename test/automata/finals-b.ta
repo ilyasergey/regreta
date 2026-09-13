@@ -1,0 +1,6 @@
+# L(B) = { g(a) }
+states r s
+finals r
+terminals g a
+trans r 0 g 2 T:g S:s
+trans s 1 a 1 T:a

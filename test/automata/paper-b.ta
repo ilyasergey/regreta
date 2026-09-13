@@ -1,0 +1,14 @@
+# A_g of Figure 6, produced by `greta cfg2ta test/grammars/running-example.cfg`.
+states decl expr ident stmt
+finals stmt
+terminals ELSE EQ IDENT IF INT LPAREN PLUS RPAREN SEMI STAR THEN TINT
+trans decl 3 TINT 4 T:TINT S:ident T:EQ S:expr
+trans expr 5 PLUS 3 S:expr T:PLUS S:expr
+trans expr 6 STAR 3 S:expr T:STAR S:expr
+trans expr 7 INT 1 T:INT
+trans expr 8 LPAREN 3 T:LPAREN S:expr T:RPAREN
+trans expr 9 - 1 S:ident
+trans ident 4 IDENT 1 T:IDENT
+trans stmt 0 SEMI 2 S:decl T:SEMI
+trans stmt 1 IF 4 T:IF S:expr T:THEN S:stmt
+trans stmt 2 IF 6 T:IF S:expr T:THEN S:stmt T:ELSE S:stmt

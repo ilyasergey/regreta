@@ -1,0 +1,6 @@
+states q0 q1
+finals q0
+terminals a b
+trans q0 0 a 1 T:a
+trans q0 -1 ε 1 S:q1
+trans q1 1 b 1 T:b
