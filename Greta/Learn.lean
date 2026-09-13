@@ -5,6 +5,11 @@ tree examples the user did *not* select.
 The algorithm rewrites the base precedence order `O_bp` of the input grammar so that the
 symbols involved in each conflict are stratified into consecutive orders, while the
 relative order of all other symbols is preserved.
+
+This is Algorithm 3.1 *as printed*; the learner Greta ships differs (`Greta.RefLearn`).
+The conflict groups are linearised by `topoSort`, since a comparison sort drops
+constraints (`docs/divergences.md`, §9).  `Greta.LearnSpec` proves Lemma B.2 about
+`relayerOrder` and checks the learned pair against the specification Theorem 3.1 assumes.
 -/
 import Greta.Examples
 

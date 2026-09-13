@@ -18,18 +18,31 @@ Figure 3, and that `GenTA` reproduces Figure 7 transition for transition, with t
 row at `e2` corrected as [`divergences.md`](divergences.md#7-figure-7-has-a-typo) explains.
 It also checks the translation theorem, [`CFG.toTA_correct`](../Greta/CFG.lean#L318), on concrete parse trees.
 
-**Two edge cases of the learner.** [`testAssocOnly`](../Greta/Test.lean#L242) checks that a symbol whose only conflict
-is with itself is still re-layered ([divergences §2](divergences.md#2-algorithm-31s-inputs-get-a-specification));
-[`testCycle`](../Greta/Test.lean#L277) checks the witness against Theorem 3.1(2) as printed
-([divergences §1](divergences.md#1-theorem-31-needs-acyclicity)).
+**The witnesses of `divergences.md`.** [`testAssocOnly`](../Greta/Test.lean#L246) checks
+that a symbol whose only conflict is with itself is still re-layered ([§2](divergences.md#d2));
+[`testCycle`](../Greta/Test.lean#L281) the cycle grammar against Theorem 3.1(2) ([§1](divergences.md#d1));
+[`testBrackets`](../Greta/Test.lean#L447) that `x * (y + z)` is kept by neither the published
+learner nor `Fits`, and is kept by the shipped one ([§8](divergences.md#d8));
+[`testTopoSort`](../Greta/Test.lean#L497) that the four-operator grammar's long-range
+constraint survives the linearisation ([§9](divergences.md#d9)); and
+[`testPipelineChecked`](../Greta/Test.lean#L520) that the checked side conditions reject the
+cycle witness. The `I¹` witness of [§5](divergences.md#d5) is not a test but a `#guard` in
+`Greta/IntersectSpec.lean`, evaluated when the file is compiled.
+
+**The learner as shipped.** [`testRefLearner`](../Greta/Test.lean#L347) compares
+`refLearnOaOp` with what `Learner.learn_op` prints, as described
+[below](#running-the-shipped-learner), and [`testRefBackEdge`](../Greta/Test.lean#L379)
+checks that `refGenTA` carries the back-edges of `learn_ta`.
 
 **The optimised intersection against the verified one.** For each of the five
 configurations of Table 1 (`I^def`, `I^1`, `I^2`, `I^3`, `I^123`), the suite runs
-[`intersectTA`](../Greta/Intersect.lean#L168) (Algorithm 3.3) and compares its language with [`prodTA`](../Greta/Product.lean#L63) (Section 2.4), which
-is proved to recognise the intersection ([`prodTA_lang`](../Greta/Product.lean#L377)). The comparison is on a corpus of trees enumerated
-from both inputs and from the result, so both over- and under-acceptance are visible. The
-same comparison is run on grammars from a deterministic pseudo-random generator, so a
-failure reproduces from its seed.
+[`intersectTA`](../Greta/Intersect.lean#L177) (Algorithm 3.3) and compares its language with
+[`prodTA`](../Greta/Product.lean#L63) (Section 2.4) on a corpus of trees enumerated from
+both inputs and from the result, so both over- and under-acceptance are visible. The same
+comparison is run on grammars from a deterministic pseudo-random generator, so a failure
+reproduces from its seed. The equality is proved ([`intersectTA_lang`](../Greta/IntersectSpec.lean#L1756));
+the test remains as a check that the definitions the proof is about are the ones that
+execute, and because the random grammars happen not to exercise the `I¹` defect.
 
 ## The text format
 
@@ -67,3 +80,33 @@ right-hand-side element, terminals included.
 
 Trees, which only appear in diagnostic output, are printed as `#<terminal>` for a leaf
 and `(<id> <name> <rank> <child> ...)` for a node.
+
+## Running the shipped learner
+
+`Greta/RefLearn.lean` is `Learner.update_op_per_ord_amb_symsls` and `Learner.learn_op` as
+the OCaml ships them, and `lake exe greta selftest` compares it against what those
+functions actually print.  The expectations in `Greta/Test.lean` (`expectedRefOp`,
+`expectedRefSpecs`) were obtained by running the vendored code directly, since upstream's
+own entry point is interactive and `ocaml-ref/driver` has no `learn` command.
+
+Stage the sources outside the read-only tree, build a driver beside them that supplies
+`M_to` on the command line, and call `Learner.learn_op`:
+
+```
+cp -r ocaml-ref/src /tmp/oref/src           # the modules `fetch.sh` staged
+echo '(lang dune 3.0)' > /tmp/oref/dune-project
+# /tmp/oref/learn/main.ml: parse the .cfg as ocaml-ref/driver/main.ml does, then
+#   let (_, _, obp_tbl, _, _, _) = Converter.cfg_to_ta false g in
+#   let op, specs = Learner.learn_op obp_tbl [] mto false in
+#   ... print `op` and `specs` ...
+dune build && ./_build/default/learn/main.exe test/grammars/running-example.cfg 0:1,2 1:5,6
+```
+
+where `0:1,2 1:5,6` is `M_to` by production identifier — order 0 holds the conflict group
+`(IF,4) < (IF,6)` and order 1 holds `(PLUS,3) < (STAR,3)` — printed by `refLearnOaOp`'s
+own `toMapOf`, so that the two implementations are given the same input.  OCaml 5.1 or
+later is needed; the staged modules use `List.is_empty`.
+
+On the four grammars in `test/grammars` that have example files, the `O_p` and the
+`special_loop_symbols` the two produce agree exactly.  The comparison is not part of
+`scripts/difftest.sh`, because the driver it needs is not in `ocaml-ref/`.

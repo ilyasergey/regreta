@@ -12,8 +12,10 @@ paper ablates separately (`I¹`, `I²`, `I³` of Table 1) and each of which is a
 * `introEps` — when the transitions of one state are a subset of another's, the shared
   ones are replaced by a single ε-transition.
 
-`Greta.prodTA_lang` proves `L(A ⊗ B) = L(A) ∩ L(B)` for the textbook construction; the
-optimised algorithm below is checked against it by testing (see `docs/divergences.md`).
+`Greta.prodTA_lang` proves `L(A ⊗ B) = L(A) ∩ L(B)` for the textbook construction, and
+`Greta.intersectTA_lang` in `Greta.IntersectSpec` proves that the optimised algorithm below
+recognises the same language, for every setting of the flags, under two decidable side
+conditions that the default setting discharges (see `docs/divergences.md`, §5).
 -/
 import Greta.Product
 import Greta.CFG
@@ -113,15 +115,22 @@ def renameTrans (f : σ → σ) (tr : Transition σ) : Transition σ :=
     | .state x => .state (f x)
     | .term a  => .term a⟩
 
+/-- One step of the fold that chooses the representatives: a pair is acted on unless one
+of its two states has already been merged away. -/
+def keepStep (acc : List (σ × σ)) (p : σ × σ) : List (σ × σ) :=
+  if (acc.map Prod.snd).contains p.2 then acc
+  else if (acc.map Prod.snd).contains p.1 then acc
+  else acc ++ [p]
+
+/-- The duplicate pairs that are acted on: those whose two states are distinct and neither
+of which has already been eliminated.  This is the `keep` list of `mergeDups`, named so
+that `Greta.IntersectSpec` can reason about it. -/
+def mergeKeep (qs : List σ) (δ : List (Transition σ)) : List (σ × σ) :=
+  ((findDupStates qs δ).filter fun p => p.1 != p.2).foldl keepStep []
+
 /-- Merge duplicate states, keeping the first representative of each class. -/
 def mergeDups (qs : List σ) (δ : List (Transition σ)) : List σ × List (Transition σ) :=
-  -- keep only pairs whose first component is not itself eliminated
-  let dups := (findDupStates qs δ).filter fun p => p.1 != p.2
-  let keep : List (σ × σ) := dups.foldl (fun acc p =>
-      if (acc.map Prod.snd).contains p.2 then acc
-      else if (acc.map Prod.snd).contains p.1 then acc
-      else acc ++ [p]) []
-  let f := canonOf keep
+  let f := canonOf (mergeKeep qs δ)
   ((qs.map f).dedup, (δ.map (renameTrans f)).dedup)
 
 /-! ### Step 3: introducing ε-transitions -/

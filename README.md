@@ -23,13 +23,23 @@ algorithms against Greta, the paper's OCaml implementation.
 
 What was found, in brief; [`docs/divergences.md`](docs/divergences.md) has the details.
 
-* Theorem 3.2 holds as stated.
-* Theorem 3.1 does not hold as stated. It needs the grammar's symbol order to have no
-  cycle, the case the paper's own proof declares out of scope; a five-production grammar
-  shows the condition is necessary. With it, and four bookkeeping conditions the paper's
-  definitions already imply, both halves are proved.
-* Nothing found changes the algorithms. Two of the defects found in the OCaml implementation
-  are in code the paper does not describe.
+* Theorem 3.2 holds as stated, for the product construction of Section 2.4.
+* Theorem 3.1(2) holds once the grammar's symbol order has no cycle, the case the paper's
+  own proof declares out of scope; a five-production grammar shows the condition is
+  necessary. It is proved, and the side conditions are checked on the input.
+* Theorem 3.1(1) is false for the published algorithms. On the grammar of Section 1, with
+  the paper's own rejected examples, the repair loses `x * (y + z)`: Algorithm 3.1 as
+  printed copies the non-conflicting symbols to every new order, so a bracketing production
+  keeps its contents at its own precedence level. Greta's own learner, which uses a
+  back-edge instead, is not affected.
+* Building `M_to` needs a topological sort. A comparison sort can drop a constraint it
+  never tests, and the repaired grammar then still admits a rejected nesting.
+* Algorithm 3.3, the optimised intersection, is proved to recognise the intersection, so
+  the last link in the paper's chain of correctness no longer rests on testing. One of its
+  ablations is wrong: with reachability off, duplicate merging can elect a non-accepting
+  representative and lose trees. A two-transition witness is checked at build time.
+* Two of the defects found in the OCaml implementation are in code the paper does not
+  describe.
 
 Where the paper and the OCaml code disagree, the formalisation follows the paper. Symbol
 naming follows the code so that printed automata can be compared byte for byte. Section,
@@ -53,10 +63,11 @@ A.n and Lemmas B.n are in its supplementary material.
 ## What is formalised
 
 *Proved* is a complete Lean proof. *Proved under assumptions* links to the section of
-[`docs/divergences.md`](docs/divergences.md) that states the assumptions and why they are
-there. *Executable* definitions also run, through `lake exe greta`. Definitions A.n,
-Theorem A.10 and Lemmas B.n are in the paper's supplementary material, which is part of the
-extended version at [arXiv:2602.18166](https://arxiv.org/abs/2602.18166).
+[`docs/divergences.md`](docs/divergences.md) that states the assumptions. *Checked* means
+the tool decides the condition on its input, and the theorem applies when the check passes.
+*Executable* definitions also run, through `lake exe greta`. Definitions A.n, Theorem A.10
+and Lemmas B.n are in the paper's supplementary material, part of the extended version at
+[arXiv:2602.18166](https://arxiv.org/abs/2602.18166).
 
 | Paper | Lean | Status |
 | --- | --- | --- |
@@ -70,16 +81,21 @@ extended version at [arXiv:2602.18166](https://arxiv.org/abs/2602.18166).
 | §2.4 `L(A ⊗ B) = L(A) ∩ L(B)` | [`prodTA_lang`](Greta/Product.lean#L377) | proved |
 | §3 tree examples, `ParseTrees`, `P⁻`, `L⁻` | [`TreeExample`](Greta/Examples.lean#L17), [`parseTreesOf`](Greta/Examples.lean#L117), [`excludedLang`](Greta/Examples.lean#L130) | definitions |
 | §3.1.1 `O_bp`, trivial symbols, `HighToLow` | [`baseOrder`](Greta/Order.lean#L124), [`trivialSyms`](Greta/Order.lean#L106), [`highToLow`](Greta/Order.lean#L150) | executable |
-| Algorithm 3.1, `LearnOaOp` | [`learnOaOp`](Greta/Learn.lean#L57) | executable, as printed ([§4](docs/divergences.md#4-lemma-b2-is-about-the-published-algorithm-31)) |
-| Algorithm 3.2, `GenTA` | [`genTA`](Greta/GenTA.lean#L140) | executable ([§6](docs/divergences.md#6-algorithm-32-applies-every-associativity-restriction), [§7](docs/divergences.md#7-figure-7-has-a-typo)) |
-| Algorithm 3.3, `IntersectTA`, with the ablations of Table 1 | [`intersectTA`](Greta/Intersect.lean#L168) | executable; equal to `prodTA` by testing only ([§5](docs/divergences.md#5-theorem-32-is-about-the-product-construction)) |
-| Algorithm 3.3, removing transitions accepts no more | [`accepts_mono`](Greta/Intersect.lean#L249) | proved |
-| Algorithm 3.4, `FindDupStates` | [`findDupStates`](Greta/Intersect.lean#L99) | executable |
-| Lemma B.1, `O_p` against `L_r` | [`epsReach_lvl`](Greta/GenTASpec.lean#L160), [`evalT_genTA_inv`](Greta/GenTASpec.lean#L178) | proved, restated ([§3](docs/divergences.md#3-lemma-b1-gains-a-child-position)) |
-| Lemma B.2, orders of non-conflicting symbols | [`shift_mono`](Greta/Soundness.lean#L25) | arithmetic core proved; replaced by `Fits` ([§4](docs/divergences.md#4-lemma-b2-is-about-the-published-algorithm-31)) |
-| Theorem 3.1(1), `L_r ⊇ L_g \ L⁻` | [`genTA_sound₁`](Greta/GenTASpec.lean#L630) | proved under assumptions ([§1](docs/divergences.md#1-theorem-31-needs-acyclicity), [§2](docs/divergences.md#2-algorithm-31s-inputs-get-a-specification)) |
-| Theorem 3.1(2), `L_r ∩ L⁻ = ∅` | [`genTA_sound₂`](Greta/GenTASpec.lean#L341) | proved under assumptions ([§1](docs/divergences.md#1-theorem-31-needs-acyclicity), [§2](docs/divergences.md#2-algorithm-31s-inputs-get-a-specification)) |
-| Theorem 3.2, correctness of Greta | [`greta_correct_of_spec`](Greta/GenTASpec.lean#L673) | proved, for the product construction ([§5](docs/divergences.md#5-theorem-32-is-about-the-product-construction)) |
+| Algorithm 3.1, `LearnOaOp`, as printed | [`learnOaOp`](Greta/Learn.lean#L62) | executable ([§8](docs/divergences.md#d8), [§9](docs/divergences.md#d9)) |
+| Algorithm 3.1 as `learner.ml` ships it | [`refLearnOaOp`](Greta/RefLearn.lean#L131), [`refGenTA`](Greta/RefLearn.lean#L560) | executable; matches the OCaml ([D7](docs/reference-defects.md#d7-algorithm-31-as-printed-is-not-what-learnerml-does)) |
+| Algorithm 3.2, `GenTA` | [`genTA`](Greta/GenTA.lean#L140) | executable ([§6](docs/divergences.md#d6), [§7](docs/divergences.md#d7)) |
+| Algorithm 3.3, `IntersectTA`, with the ablations of Table 1 | [`intersectTA`](Greta/Intersect.lean#L177), [`intersectTA_lang`](Greta/IntersectSpec.lean#L1756) | executable; proved equal to `prodTA` ([§5](docs/divergences.md#d5)) |
+| Algorithm 3.4, `FindDupStates` | [`findDupStates`](Greta/Intersect.lean#L101), [`merge_lang`](Greta/IntersectSpec.lean#L1384) | executable; merging proved language-preserving |
+| Lemma B.1, `O_p` against `L_r` | [`epsReach_lvl`](Greta/GenTASpec.lean#L160), [`evalT_genTA_inv`](Greta/GenTASpec.lean#L178) | proved, restated ([§3](docs/divergences.md#d3)) |
+| Lemma B.2, as printed | [`relayerOrder_ordersOf_above`](Greta/LearnSpec.lean#L370), [`relayerOrder_replicates`](Greta/LearnSpec.lean#L475) | proved, both halves ([§4](docs/divergences.md#d4)) |
+| Lemma B.2, for the learner Greta ships | [`refGenTA_specReach`](Greta/RefLearn.lean#L708), [`refRelayerFold_no_inversion`](Greta/RefLearn.lean#L312) | proved ([§4](docs/divergences.md#d4)) |
+| Theorem 3.1(1), `L_r ⊇ L_g \ L⁻` | [`genTA_sound₁`](Greta/GenTASpec.lean#L646) | proved under assumptions; false as stated ([§8](docs/divergences.md#d8)) |
+| Theorem 3.1(2), `L_r ∩ L⁻ = ∅` | [`genTA_sound₂`](Greta/GenTASpec.lean#L342) | proved under assumptions ([§1](docs/divergences.md#d1), [§2](docs/divergences.md#d2)) |
+| Theorem 3.2, for the product construction | [`greta_correct_of_spec`](Greta/GenTASpec.lean#L689) | proved ([§5](docs/divergences.md#d5)) |
+| The assumptions of Theorem 3.1, of the pair Algorithm 3.1 learns | [`learnedSpec_of_check`](Greta/LearnSpec.lean#L923), [`fits_of_check`](Greta/LearnSpec.lean#L1023) | checked; `Fits` fails on brackets ([§2](docs/divergences.md#d2), [§8](docs/divergences.md#d8)) |
+| Theorem 3.1(2), for the pipeline of Figure 4 | [`genTA_sound₂_pipeline`](Greta/LearnSpec.lean#L1106) | proved, assumptions checked |
+| Theorem 3.2, for the pipeline of Figure 4 | [`repairOnceSpec_correct_pipeline`](Greta/LearnSpec.lean#L1144) | proved, assumptions checked |
+| One round of repair as run equals the verified round | [`repairOnce_lang`](Greta/Soundness.lean#L157) | proved, given distinct start nonterminals |
 
 ## Building and running
 
@@ -128,8 +144,9 @@ disagreement there is a defect in the reference.
 | Intersection (Algorithm 3.3) | The reference disagrees with the verified product on every automaton pair tested. It drops the transitions of the accepting state that are reachable only through an ε-transition, so on the running example the repaired grammar loses `if … then … else`. With the arguments in the other order it does not terminate. |
 
 Both intersection defects are in the OCaml code, not in Algorithm 3.3 as printed: the Lean
-`intersectTA`, which follows the pseudocode, agrees with the verified product in every
-test. Each defect has a reproducer, a diagnosis and a suggested fix in
+`intersectTA`, which follows the pseudocode, is proved to recognise the same language as
+the verified product ([`intersectTA_lang`](Greta/IntersectSpec.lean#L1756)) in the
+configuration Greta runs. Each defect has a reproducer, a diagnosis and a suggested fix in
 [`docs/reference-defects.md`](docs/reference-defects.md).
 
 ## Layout

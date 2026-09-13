@@ -21,17 +21,21 @@ Definitions A.1 to A.10; the Lean source cites them by that numbering.
 | `Greta/Learn.lean` | Algorithm 3.1 |
 | `Greta/GenTA.lean` | Algorithm 3.2 |
 | `Greta/Intersect.lean` | Algorithms 3.3 and 3.4, and the monotonicity lemmas |
-| `Greta/Soundness.lean` | Theorem 3.1 as two statements ([`GenTASound₁`](../Greta/Soundness.lean#L46), [`GenTASound₂`](../Greta/Soundness.lean#L54)), Theorem 3.2 derived from them ([`greta_correct`](../Greta/Soundness.lean#L69)), the repair pipeline |
-| `Greta/GenTASpec.lean` | the shape of `A_r`; Theorem 3.1 proved ([`genTA_sound`](../Greta/GenTASpec.lean#L663)); Theorem 3.2 with Theorem 3.1 discharged ([`greta_correct_of_spec`](../Greta/GenTASpec.lean#L673)) |
+| `Greta/IntersectSpec.lean` | Algorithm 3.3 proved equal to the product ([`intersectTA_lang`](../Greta/IntersectSpec.lean#L1756)), one optimisation at a time; the `I¹` witness |
+| `Greta/Soundness.lean` | Theorem 3.1 as two statements ([`GenTASound₁`](../Greta/Soundness.lean#L52), [`GenTASound₂`](../Greta/Soundness.lean#L60)), Theorem 3.2 derived from them ([`greta_correct`](../Greta/Soundness.lean#L75)), the repair pipeline as run and as verified ([`repairOnce_lang`](../Greta/Soundness.lean#L157)) |
+| `Greta/GenTASpec.lean` | the shape of `A_r`; Theorem 3.1 proved ([`genTA_sound`](../Greta/GenTASpec.lean#L679)); Theorem 3.2 with Theorem 3.1 discharged ([`greta_correct_of_spec`](../Greta/GenTASpec.lean#L689)) |
+| `Greta/LearnSpec.lean` | Lemma B.2 ([`relayerOrder_ordersOf_above`](../Greta/LearnSpec.lean#L370), [`relayerOrder_replicates`](../Greta/LearnSpec.lean#L475)); the learner against `LearnedSpec`, `Fits` and `Covers`; Theorem 3.2 for the pipeline ([`repairOnceSpec_correct_pipeline`](../Greta/LearnSpec.lean#L1144)) |
+| `Greta/RefLearn.lean` | Algorithm 3.1 *as shipped*, the back-edges of `learn_ta`, and the restated Lemma B.2 ([`refGenTA_specReach`](../Greta/RefLearn.lean)) |
 | `Greta/Serialize.lean` | the text format shared with the OCaml driver |
 | `Greta/Enumerate.lean` | bounded enumeration of accepted trees, used for language comparison |
 | `Greta/Test.lean` | the `selftest` suite |
 
-`Greta/Soundness.lean` also defines [`repairOnce`](../Greta/Soundness.lean#L107), one round
+`Greta/Soundness.lean` also defines [`repairOnce`](../Greta/Soundness.lean#L113), one round
 of the repair loop of Figure 4 with Algorithm 3.3 as the intersection, and
-[`repairOnceSpec`](../Greta/Soundness.lean#L116), the same round with the product
-construction; [`repairOnceSpec_correct`](../Greta/Soundness.lean#L128) is Theorem 3.2
-applied to it.
+[`repairOnceSpec`](../Greta/Soundness.lean#L122), the same round with the product
+construction. [`repairOnce_lang`](../Greta/Soundness.lean#L157) shows the two recognise the same
+language, given distinct start nonterminals, so Theorem 3.2 applies to either
+([`repairOnceSpec_correct`](../Greta/Soundness.lean#L134), [`repairOnce_correct`](../Greta/Soundness.lean#L171)).
 
 ## Design decisions
 
@@ -78,13 +82,19 @@ read a level back; the printer names them `e0`, `e1`, … as the reference does.
 
 `Greta/Product.lean` defines the product of §2.4 and proves it correct.
 `Greta/Intersect.lean` defines the algorithm Greta runs, with the three optimisations of
-Algorithm 3.3 as flags so that the ablations of Table 1 can be reproduced. The two are
-related by testing: `lake exe greta selftest` checks, on the running example and on random
-grammars, that all five settings agree with the verified product on a corpus of trees.
+Algorithm 3.3 as flags so that the ablations of Table 1 can be reproduced.
+`Greta/IntersectSpec.lean` proves the two equal ([`intersectTA_lang`](../Greta/IntersectSpec.lean#L1756)),
+one optimisation at a time: the worklist loop by an ε-elimination lemma and a fuel
+argument in the style of `saturate_closed`, duplicate merging as a quotient by a
+language-preserving equivalence, ε-introduction by a subsumption lemma that needs no
+invariant over the loop. Two decidable side conditions remain; the default setting
+discharges both, and one of the ablations does not ([`divergences.md` §5](divergences.md#d5)).
+`lake exe greta selftest` still compares all five settings with the product on enumerated
+trees, as a check that the definitions the proof is about are the ones that execute.
 
-The soundness half of the reachability optimisation is proved: [`evalT_mono`](../Greta/Intersect.lean#L231) and
-[`accepts_mono`](../Greta/Intersect.lean#L249) say that removing transitions, shrinking the closure, or removing final
-states can only shrink the language.
+[`evalT_mono`](../Greta/Intersect.lean#L240) and [`accepts_mono`](../Greta/Intersect.lean#L258)
+are the easy half, kept because the proof of the reachability stage uses them: removing
+transitions, shrinking the closure, or removing final states can only shrink the language.
 
 ### Symbol names
 
@@ -97,8 +107,9 @@ paper's `δ`. This keeps the generated automata comparable byte for byte.
 ## Reading the main theorems
 
 [`CFG.toTA_correct`](../Greta/CFG.lean#L318) is Theorem A.10, [`prodTA_lang`](../Greta/Product.lean#L377) the
-product theorem, [`genTA_sound`](../Greta/GenTASpec.lean#L663) Theorem 3.1 and
-[`greta_correct_of_spec`](../Greta/GenTASpec.lean#L673) Theorem 3.2.
+product theorem, [`genTA_sound`](../Greta/GenTASpec.lean#L679) Theorem 3.1,
+[`greta_correct_of_spec`](../Greta/GenTASpec.lean#L689) Theorem 3.2, and
+[`intersectTA_lang`](../Greta/IntersectSpec.lean#L1756) the correctness of Algorithm 3.3.
 
 ```lean
 theorem CFG.toTA_correct (g : CFG) (t : Tree) :
@@ -116,12 +127,21 @@ theorem greta_correct_of_spec (hspec : LearnedSpec g neg b oa op) (hfits : Fits 
     (hcov : Covers g b op) (hstart : ∀ A ∈ g.starts, A ∉ trivNts g b)
     (hAc : g.highToLow (g.baseOrder b) op = []) (t : Tree) :
     (prodTA (genTA g oa op b) g.toTA).Lang t ↔ g.repairedLang neg t = true
+
+theorem intersectTA_lang (A : TA σ₁) (B : TA σ₂) (opts : IntersectOpts)
+    (hnd : opts.reachability = true → (pairs A.finals B.finals).Nodup)
+    (hkeep : DedupKeepsFinals A B opts) (t : Tree) :
+    (intersectTA A B opts).Lang t ↔ A.Lang t ∧ B.Lang t
 ```
 
 `g.repairedLang neg` is `L_g \ L⁻`: a complete parse tree of `g` that no unselected tree
-example rules out. [`GenTASound₁`](../Greta/Soundness.lean#L46) and [`GenTASound₂`](../Greta/Soundness.lean#L54) are the two statements of Theorem 3.1,
+example rules out. [`GenTASound₁`](../Greta/Soundness.lean#L52) and [`GenTASound₂`](../Greta/Soundness.lean#L60) are the two statements of Theorem 3.1,
 `L_r ⊇ L_g \ L⁻` and `L_r ∩ L⁻ = ∅`. The hypotheses are explained in
-[`divergences.md`](divergences.md).
+[`divergences.md`](divergences.md); `Fits` is false whenever a production brackets its own
+nonterminal, so `genTA_sound₁` says nothing about such grammars ([§8](divergences.md#d8)).
+`Greta/LearnSpec.lean` decides `LearnedSpec` and the other conditions on the input, and
+[`repairOnceSpec_correct_pipeline`](../Greta/LearnSpec.lean#L1144) is Theorem 3.2 for the
+pipeline of Figure 4 with them all discharged by the check.
 
 `scripts/check-axioms.sh` prints the axioms these theorems depend on:
 
@@ -130,4 +150,7 @@ example rules out. [`GenTASound₁`](../Greta/Soundness.lean#L46) and [`GenTASou
 'Greta.prodTA_lang' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Greta.genTA_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Greta.greta_correct_of_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Greta.intersectTA_lang' depends on axioms: [propext, Classical.choice, Quot.sound]
 ```
+
+together with the rest of the theorems named in this document and in the README.

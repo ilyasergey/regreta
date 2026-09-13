@@ -9,10 +9,16 @@ derived from them, and the repair pipeline of Figure 4.
   A.10) and from `Greta.prodTA_lang`, exactly as the paper does ("Follows from Theorem 3.1
   and set intersection").
 * `shift_mono` is the arithmetic fact underlying Lemma B.2: re-layering the precedence
-  order never inverts the relative order of two symbols.
+  order never inverts the relative order of two symbols.  The lemma itself is proved in
+  `Greta.LearnSpec`.
+* `repairOnce` is one round of Figure 4 as Greta runs it, with Algorithm 3.3 as the
+  intersection; `repairOnceSpec` is the same round with the verified product.
+  `repairOnce_lang` identifies their languages, using `Greta.intersectTA_lang`, so
+  Theorem 3.2 carries over to the round as run (`repairOnce_correct`).
 -/
 import Greta.GenTA
 import Greta.Intersect
+import Greta.IntersectSpec
 
 namespace Greta
 
@@ -137,5 +143,44 @@ theorem repairOnceSpec_correct (g : CFG) (neg : List TreeExample) (excludeTrivia
     (t : Tree) :
     (repairOnceSpec g neg excludeTrivial).Lang t ↔ g.repairedLang neg t = true :=
   greta_correct g neg _ h₁ h₂ t
+
+/--
+**The pipeline Greta runs recognises the same language as the verified one.**  Algorithm
+3.3 agrees with the product construction (`Greta.intersectTA_lang_prodTA`), so `repairOnce`
+may be substituted for `repairOnceSpec` in `repairOnceSpec_correct`.
+
+The two side conditions of `Greta.intersectTA_lang` specialise to one hypothesis on the
+input grammar: `genTA` has the single accepting state `e₀`, so the accepting pairs are
+duplicate-free as soon as the start nonterminals are listed once each, and the second
+condition is discharged by `reachability := true`, which is the default.
+-/
+theorem repairOnce_lang (g : CFG) (neg : List TreeExample) (opts : IntersectOpts)
+    (excludeTrivial : Bool) (hstarts : g.starts.Nodup) (hreach : opts.reachability = true)
+    (t : Tree) :
+    (repairOnce g neg opts excludeTrivial).Lang t ↔
+      (repairOnceSpec g neg excludeTrivial).Lang t := by
+  simp only [repairOnce, repairOnceSpec]
+  refine intersectTA_lang_prodTA _ g.toTA opts ?_
+    (dedupKeepsFinals_of_reachability _ _ _ hreach) t
+  intro _
+  rw [genTA_finals]
+  exact pairs_nodup (by simp) hstarts
+
+/-- One round of repair, as Greta runs it, is correct under the hypotheses of Theorem 3.1
+and one round of `repairOnceSpec_correct`. -/
+theorem repairOnce_correct (g : CFG) (neg : List TreeExample) (opts : IntersectOpts)
+    (excludeTrivial : Bool)
+    (h₁ : GenTASound₁ g neg
+      (genTA g (learnOaOp g neg (toMapOf (g.baseOrder excludeTrivial) neg) excludeTrivial).1
+        (learnOaOp g neg (toMapOf (g.baseOrder excludeTrivial) neg) excludeTrivial).2
+        excludeTrivial))
+    (h₂ : GenTASound₂ g neg
+      (genTA g (learnOaOp g neg (toMapOf (g.baseOrder excludeTrivial) neg) excludeTrivial).1
+        (learnOaOp g neg (toMapOf (g.baseOrder excludeTrivial) neg) excludeTrivial).2
+        excludeTrivial))
+    (hstarts : g.starts.Nodup) (hreach : opts.reachability = true) (t : Tree) :
+    (repairOnce g neg opts excludeTrivial).Lang t ↔ g.repairedLang neg t = true :=
+  (repairOnce_lang g neg opts excludeTrivial hstarts hreach t).trans
+    (repairOnceSpec_correct g neg excludeTrivial h₁ h₂ t)
 
 end Greta

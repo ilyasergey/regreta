@@ -1,10 +1,14 @@
 /-
-Executable test suite: the running example of the paper, and randomised property tests
-comparing the optimised Algorithm 3.3 against the verified product construction.
+Executable test suite: the running example of the paper; the witnesses for the divergences
+recorded in `docs/divergences.md` (the cycle, the bracketing production, the dropped sort
+constraint, the unsound ablation); the learner as Greta ships it against what the OCaml
+prints; and randomised comparisons of Algorithm 3.3 with the verified product, which now
+double-check the definitions `Greta.intersectTA_lang` is about.
 
 Run with `lake exe greta selftest`.
 -/
 import Greta.Enumerate
+import Greta.RefLearn
 
 namespace Greta
 namespace Test
@@ -291,6 +295,123 @@ def testCycle (r : Report) : IO Report := do
   r ← check r "A_r nevertheless accepts it: Theorem 3.1(2) needs acyclicity" (ar.langB t)
   return r
 
+/-! ### The learner Greta actually ships (`Greta.RefLearn`)
+
+`Greta.Learn` is Algorithm 3.1 as printed; `Greta.RefLearn` is
+`Learner.update_op_per_ord_amb_symsls` as shipped.  The expectations below are what the
+vendored OCaml prints: the upstream driver is interactive, so they were taken by running
+`Learner.learn_op` on the `M_to` that `toMapOf` computes here (the procedure is recorded
+in `docs/testing.md`).  The reference does not exclude the trivial symbols (D8), so the
+comparison uses `excludeTrivial := false`.
+-/
+
+/-- `O_p` as `Learner.learn_op` prints it for the running example. -/
+def expectedRefOp : List (Nat × List Int) :=
+  [ (0, [1])            -- (IF,4)
+  , (1, [2])            -- (IF,6)
+  , (2, [0])            -- (SEMI,2), the non-conflicting symbol of order 0
+  , (3, [5])            -- (PLUS,3)
+  , (4, [6])            -- (STAR,3)
+  , (5, [3, 7, 8, 9])   -- the non-conflicting symbols of order 1
+  , (6, [4]) ]          -- (IDENT,1), which the reference does not exclude
+
+/-- `special_loop_symbols` as `Learner.learn_op` records them for the running example. -/
+def expectedRefSpecs : List (Int × Nat) := [(0, 0), (3, 3), (7, 3), (8, 3), (9, 3)]
+
+/-- The back-edge table, by production identifier. -/
+def specIds (specs : SpecMap) : List (Int × Nat) :=
+  (specs.map fun p => (p.1.id, p.2)).mergeSort (fun a b => a.1 ≤ b.1)
+
+/--
+`A_r` as `Learner.learn_ta` builds it from that `O_p`: one transition per symbol, with the
+non-conflicting symbols pointing back at the order they were moved from — `(SEMI,2)` at
+`e2` back to `e0`, and the symbols of `e5` back to `e3`.
+-/
+def expectedRefAr : List String :=
+  [ "e0 <1 IF [e0] THEN [e0]"
+  , "e0 <-1 [e1]"
+  , "e1 <2 IF [e1] THEN [e1] ELSE [e1]"
+  , "e1 <-1 [e2]"
+  , "e2 <0 [e0] SEMI"
+  , "e2 <-1 [e3]"
+  , "e3 <5 [e3] PLUS [e4]"
+  , "e3 <-1 [e4]"
+  , "e4 <6 [e4] STAR [e5]"
+  , "e4 <-1 [e5]"
+  , "e5 <3 TINT [ident] EQ [e3]"
+  , "e5 <7 INT"
+  , "e5 <8 LPAREN [e3] RPAREN"
+  , "e5 <9 [ident]"
+  , "ident <4 IDENT" ]
+
+def testRefLearner (r : Report) : IO Report := do
+  let g := runningExample
+  let neg := runningExampleNeg
+  let obp := g.baseOrder false
+  let mto := toMapOf obp neg
+  let (_, op, specs) := refLearnOaOp g neg mto false
+  let mut r := r
+  r ← check r "the shipped learner reproduces the O_p that learner.ml prints"
+        (orderIds op == expectedRefOp) s!"got {orderIds op}"
+  r ← check r "the shipped learner records the special_loop_symbols learner.ml records"
+        (specIds specs == expectedRefSpecs) s!"got {specIds specs}"
+  r ← check r "the loop runs under the discipline the invariant assumes"
+        (decide (Disciplined obp (refGroups mto)))
+  r ← check r "every back-edge points at or above its symbol's order (SpecDominated)"
+        (specs.all fun p => (op.ordersOf p.1).all fun l => p.2 ≤ l)
+  -- the same, with the trivial-symbol optimisation on, which is what `refGenTA` consumes
+  let mto' := toMapOf g.baseOrder neg
+  let (oa', op', specs') := refLearnOaOp g neg mto'
+  let shape := ((refGenTA g oa' specs' op').trans.map shapeOf).mergeSort (· ≤ ·)
+  r ← check r "A_r is the back-edge automaton learn_ta builds"
+        (shape == expectedRefAr.mergeSort (· ≤ ·))
+        s!"{shape.length} transitions, expected {expectedRefAr.length}"
+  return r
+
+/--
+The published algorithm and the shipped one do *not* agree everywhere.  On the running
+example they induce the same repaired language, but on `arith` the replication of the
+published Algorithm 3.1 loses `x + ((x + x) * x)`: at `e1`, the copy of `(STAR,3)` sends
+its children to `e1`, where `(PLUS,3)` does not live.  The back-edge sends them to `e0`
+instead, so the shipped learner keeps the tree — which is what Theorem 3.1(1) demands,
+since the user excluded only a `PLUS` directly under a `PLUS`.
+-/
+def testRefBackEdge (r : Report) : IO Report := do
+  let mut r := r
+  -- the running example: the two agree
+  let g := runningExample
+  let neg := runningExampleNeg
+  let mto := toMapOf g.baseOrder neg
+  let (oa1, op1) := learnOaOp g neg mto
+  let (oa2, op2, specs2) := refLearnOaOp g neg mto
+  let p1 := Serialize.renamePairTA id id (prodTA (Serialize.renameGen (genTA g oa1 op1)) g.toTA)
+  let p2 := Serialize.renamePairTA id id
+    (prodTA (Serialize.renameGen (refGenTA g oa2 specs2 op2)) g.toTA)
+  let ts := (corpus p1 8 4 ++ corpus p2 8 4 ++ corpus g.toTA 8 4).eraseDups
+  let d := compareOn p1 p2 ts
+  r ← check r "running example: published and shipped repair to the same language"
+        (d.onlyLeft.isEmpty && d.onlyRight.isEmpty)
+        s!"{d.onlyLeft.length} lost, {d.onlyRight.length} gained, {d.checked} checked"
+  -- arith: the published algorithm loses a tree the shipped one keeps
+  let a := arith
+  let aneg : List TreeExample := [{ top := sym! a 0, bot := sym! a 0, idx := 2 }]
+  let amto := toMapOf a.baseOrder aneg
+  let (aoa1, aop1) := learnOaOp a aneg amto
+  let (aoa2, aop2, aspecs2) := refLearnOaOp a aneg amto
+  let ar1 := genTA a aoa1 aop1
+  let ar2 := refGenTA a aoa2 aspecs2 aop2
+  let x := Tree.node (sym! a 3) [.leaf "X"]
+  let plus := fun u v => Tree.node (sym! a 0) [u, .leaf "PLUS", v]
+  let star := fun u v => Tree.node (sym! a 1) [u, .leaf "STAR", v]
+  let t := plus x (star (plus x x) x)
+  r ← check r "arith: the witness is a tree Theorem 3.1(1) says must be kept"
+        (a.repairedLang aneg t)
+  r ← check r "arith: the published Algorithm 3.1 loses it" (!(ar1.langB t))
+  r ← check r "arith: the shipped back-edge keeps it" (ar2.langB t)
+  r ← check r "arith: both still reject the nesting the user excluded"
+        (!(ar1.langB (plus x (plus x x))) && !(ar2.langB (plus x (plus x x))))
+  return r
+
 def testRandom (r : Report) (rounds : Nat) : IO Report := do
   let mut r := r
   let mut seed := 20260913
@@ -300,6 +421,107 @@ def testRandom (r : Report) (rounds : Nat) : IO Report := do
     let (g', s) := randomCFG seed
     seed := s
     r ← testIntersectionAgainstProduct r s!"random #{i}" g.toTA g'.toTA 3
+  return r
+
+/-! ### The two defects found by the specification work -/
+
+/-- The grammar of Section 1: `S → S + S | S * S | ( S ) | x | y | z`. -/
+def bracketGrammar : CFG where
+  nonterms := ["S"]
+  terms    := ["PLUS", "STAR", "LPAREN", "RPAREN", "X", "Y", "Z"]
+  starts   := ["S"]
+  prods    :=
+    [ ("S", [nt "S", tm "PLUS", nt "S"])          -- 0  (PLUS,3)
+    , ("S", [nt "S", tm "STAR", nt "S"])          -- 1  (STAR,3)
+    , ("S", [tm "LPAREN", nt "S", tm "RPAREN"])   -- 2  ((),3)
+    , ("S", [tm "X"])                             -- 3
+    , ("S", [tm "Y"])                             -- 4
+    , ("S", [tm "Z"]) ]                           -- 5
+
+/--
+**Theorem 3.1(1) fails on the paper's own Section 1 grammar.**  `x * (y + z)` is a complete
+parse tree that no rejected example excludes, and the learned automaton rejects it, because
+Algorithm 3.1 as printed replicates the bracketing production at every order instead of
+sending its right-hand side back to the lowest one.  See `docs/divergences.md`, §8.
+-/
+def testBrackets (r : Report) : IO Report := do
+  let g := bracketGrammar
+  let neg : List TreeExample :=
+    [ { top := sym! g 0, bot := sym! g 0, idx := 2 }
+    , { top := sym! g 1, bot := sym! g 1, idx := 2 }
+    , { top := sym! g 1, bot := sym! g 0, idx := 0 } ]
+  let (oa, op) := learnOaOp g neg (toMapOf (g.baseOrder) neg)
+  let ar := genTA g oa op
+  let x : Tree := .node (sym! g 3) [.leaf "X"]
+  let y : Tree := .node (sym! g 4) [.leaf "Y"]
+  let z : Tree := .node (sym! g 5) [.leaf "Z"]
+  let star := fun a b => Tree.node (sym! g 1) [a, .leaf "STAR", b]
+  let plus := fun a b => Tree.node (sym! g 0) [a, .leaf "PLUS", b]
+  let paren := fun a => Tree.node (sym! g 2) [.leaf "LPAREN", a, .leaf "RPAREN"]
+  let t := star x (paren (plus y z))
+  let mut r := r
+  r ← check r "the grammar is acyclic, so §1 does not apply"
+        (g.highToLow (g.baseOrder) op).isEmpty
+  r ← check r "`x * (y + z)` is a parse tree the user did not exclude"
+        (g.repairedLang neg t)
+  r ← check r "A_r nevertheless rejects it: Theorem 3.1(1) is false"
+        (!ar.langB t)
+  r ← check r "`Fits`, which statement (1) needs, is reported false"
+        (!fitsB g neg true oa op)
+  -- the learner Greta ships keeps the parse, because of its back-edge
+  let rf := refLearnOaOp g neg (toMapOf (g.baseOrder) neg)
+  let arRef := refGenTA g rf.1 rf.2.2 rf.2.1
+  r ← check r "the shipped learner keeps it, so the defect is the paper's alone"
+        (arRef.langB t)
+  r ← check r "and keeps `(y + z) * x` too"
+        (arRef.langB (star (paren (plus y z)) x) && !ar.langB (star (paren (plus y z)) x))
+  return r
+
+/-- Four operators at one base order, with a constraint a comparison sort would drop. -/
+def fourOpGrammar : CFG where
+  nonterms := ["S"]
+  terms    := ["PLUS", "STAR", "MINUS", "SLASH", "X"]
+  starts   := ["S"]
+  prods    :=
+    [ ("S", [nt "S", tm "PLUS", nt "S"])      -- 0
+    , ("S", [nt "S", tm "STAR", nt "S"])      -- 1
+    , ("S", [nt "S", tm "MINUS", nt "S"])     -- 2
+    , ("S", [nt "S", tm "SLASH", nt "S"])     -- 3
+    , ("S", [tm "X"]) ]                       -- 4
+
+/--
+**The conflict group must be linearised by a topological sort.**  With a constraint between
+the first and last symbols of a four-element group, a merge sort never compares them and
+drops the constraint.  `topoSort` keeps it.  See `docs/divergences.md`, §9.
+-/
+def testTopoSort (r : Report) : IO Report := do
+  let g := fourOpGrammar
+  let neg : List TreeExample :=
+    [ { top := sym! g 0, bot := sym! g 3, idx := 0 }
+    , { top := sym! g 2, bot := sym! g 1, idx := 0 } ]
+  let (oa, op) := learnOaOp g neg (toMapOf (g.baseOrder) neg)
+  let ar := genTA g oa op
+  let x : Tree := .node (sym! g 4) [.leaf "X"]
+  let slash := Tree.node (sym! g 3) [x, .leaf "SLASH", x]
+  let t := Tree.node (sym! g 0) [slash, .leaf "PLUS", x]
+  let mut r := r
+  r ← check r "the grammar is acyclic, so §1 does not apply"
+        (g.highToLow (g.baseOrder) op).isEmpty
+  r ← check r "both rejected examples are respected by the learned order"
+        (learnedSpecB g neg true oa op)
+  r ← check r "the long-range constraint puts SLASH strictly below PLUS"
+        (decide ((op.ordersOf (sym! g 3)).all fun j =>
+          (op.ordersOf (sym! g 0)).all fun i => j < i))
+  r ← check r "the excluded tree is rejected"
+        (g.excludedLang neg t && !ar.langB t)
+  return r
+
+/-- The side conditions Theorem 3.2 needs hold for `dangling-else`. -/
+def testPipelineChecked (r : Report) : IO Report := do
+  let g := cycleGrammar
+  let neg : List TreeExample := [{ top := sym! g 3, bot := sym! g 0, idx := 0 }]
+  let mut r := r
+  r ← check r "the cycle witness is reported by `pipelineOK`" (!pipelineOK g neg true)
   return r
 
 def runAll : IO UInt32 := do
@@ -312,6 +534,16 @@ def runAll : IO UInt32 := do
   r ← testAssocOnly r
   IO.println "a cycle in the order"
   r ← testCycle r
+  IO.println "the learner as shipped"
+  r ← testRefLearner r
+  IO.println "the back-edge of learn_ta"
+  r ← testRefBackEdge r
+  IO.println "brackets: Theorem 3.1(1) is false"
+  r ← testBrackets r
+  IO.println "linearising a conflict group"
+  r ← testTopoSort r
+  IO.println "the checked side conditions"
+  r ← testPipelineChecked r
   IO.println "randomised intersection"
   r ← testRandom r 6
   IO.println s!"\n{r.passed} passed, {r.failed} failed"

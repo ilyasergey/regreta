@@ -123,9 +123,9 @@ let rhs_blsls2 = reachable_beta_lsls_from_state_symbol st2 sym trans_tbl2 debug 
 `cartesian_product_trans_from` then does the same thing as
 `cartesian_product_trans_from_for_sym` and can be dropped in favour of it: Step 1 becomes
 the first iteration of the Step 3 worklist. That is how the formalisation is structured:
-[`transitionsAtPair`](../Greta/Intersect.lean#L59) is used for the accepting pair and for
-every other pair alike, and [`TA.transAt`](../Greta/Intersect.lean#L41) always looks
-through [`TA.epsDown`](../Greta/Intersect.lean#L32).
+[`transitionsAtPair`](../Greta/Intersect.lean#L61) is used for the accepting pair and for
+every other pair alike, and [`TA.transAt`](../Greta/Intersect.lean#L43) always looks
+through [`TA.epsDown`](../Greta/Intersect.lean#L30).
 
 A regression test for it: `L(A ⊗ A) = L(A)` for any `A` with an ε-transition out of its
 accepting state, which `test/automata/eps-a.ta` is.
@@ -181,7 +181,7 @@ let res_bool =
 
 and correspondingly `if ∅ ≠ RHS of Δ_i ⊆ RHS of Δ_j` in the pseudocode. A state with no
 transitions is a dead state, which Step 12 already removes; it should not be ε-linked from
-anything first. [`introEpsStep`](../Greta/Intersect.lean#L134) carries that guard.
+anything first. [`introEpsStep`](../Greta/Intersect.lean#L143) carries that guard.
 
 ### D3. `Converter.cfg_to_ta` raises `Not_found` on unreachable nonterminals
 
@@ -323,17 +323,32 @@ This matters for Lemma B.2, whose proof appeals to "the construction of `O_p`, w
 copies the non-conflicting symbols to each newly inserted order". That is an argument
 about the published algorithm, not about the code.
 
-**Suggested fix.** The smaller change is to the code: make the loop insert
-`S ∪ ithSymbols` at each new order and push by `size − 1`, which is what
-[`relayerOrder`](../Greta/Learn.lean#L38) does, and drop `special_loop_symbols` and the
-back-edges in `learn_ta` that compensate for its absence. Lemma B.2 then applies to the
-code as written.
+**Suggested fix: change the paper, not the code.** Algorithm 3.1 should be restated to
+match `learner.ml`, and Lemma B.2 reproved for it: the back-edge makes the non-conflicting
+symbols reachable from the original order rather than present at it, so the lemma's
+conclusion becomes a statement about reachability in the generated automaton rather than
+about membership in `O_p`. The apparently smaller change — make the code replicate `S` as
+the paper does, and drop the back-edges — would be a mistake, for the reason given at the
+end of this entry.
 
-If the back-edge construction is preferred, since it produces fewer states, then Algorithm 3.1
-in the paper should be restated to match it, and Lemma B.2 reproved: the back-edge makes
-the non-conflicting symbols reachable from the original order rather than present at it,
-so the lemma's conclusion has to be about reachability in the generated automaton rather
-than about membership in `O_p`.
+That restatement is carried out in [`Greta/RefLearn.lean`](../Greta/RefLearn.lean).
+[`refLearnOaOp`](../Greta/RefLearn.lean) is `update_op_per_ord_amb_symsls` and `learn_op`
+transcribed, [`refGenTA`](../Greta/RefLearn.lean) is `learn_ta` with the back-edges, and
+[`refGenTA_specReach`](../Greta/RefLearn.lean) is the restated lemma: a symbol set aside
+from order `d` ends at an order `l ≥ d`, its transition carries `e_d` at every
+right-hand-side position `O_a` does not restrict, and `e_l` is ε-promoted to `e_d`.
+`lake exe greta selftest` checks that `refLearnOaOp` reproduces the `O_p` and the
+`special_loop_symbols` that `learn_op` prints on the running example; see
+[`testing.md`](testing.md#running-the-shipped-learner).
+
+**The choice is not neutral.** On `test/grammars/arith.cfg` with a single rejected
+right-associative `PLUS`, the published algorithm loses `x + ((x + x) * x)`: the copy of
+`(STAR,3)` at `e1` sends its children to `e1`, and `(PLUS,3)` lives only at `e0`. The
+shipped one keeps it, because the back-edge sends them to `e0`. Theorem 3.1(1) says the
+tree must be kept — the user rejected only a `PLUS` directly under a `PLUS` — so on that
+input the *published* algorithm is the incorrect one, and moving the code towards the paper
+would introduce the bug. The general form of the defect, with the paper's own Section 1
+grammar as witness, is [`divergences.md` §8](divergences.md#d8).
 
 ### D8. The trivial-symbol optimisation of §3.1.1 is not implemented
 

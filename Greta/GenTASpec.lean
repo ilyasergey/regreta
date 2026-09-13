@@ -227,8 +227,9 @@ theorem oaFill_of_mem (oa : Oa) (s : Sym) (i k : Nat) (h : k ∈ oa.positionsOf 
 /-! ### What `LearnOaOp` has to deliver -/
 
 /--
-The properties of the learned `(O_a, O_p)` that Theorem 3.1(2) uses.  `docs/divergences.md`
-explains why they are hypotheses rather than facts proved about `learnOaOp`.
+The properties of the learned `(O_a, O_p)` that Theorem 3.1(2) uses.  `Greta.LearnSpec`
+proves two clauses of `learnOaOp` outright and decides the rest on the input
+(`learnedSpecB`); `docs/divergences.md` §2 explains where each clause comes from.
 -/
 structure LearnedSpec (g : CFG) (neg : List TreeExample) (b : Bool) (oa : Oa) (op : OrderMap) :
     Prop where
@@ -461,12 +462,26 @@ theorem trivSyms_of_mem_trivNts {g : CFG} {b : Bool} {A : Nonterminal}
 /-! ### The local condition Theorem 3.1(1) needs -/
 
 /--
+`s'` can occur as the `k`-th child of an `s`-node: the production of `s` has, at
+right-hand-side position `k`, the nonterminal that `s'` is a production of.
+
+Without this guard `Fits` quantifies over every pair of grammar symbols, including pairs
+that no parse tree can put in a parent/child relation, and is then false of the paper's
+own running example: `(PLUS,3)` sits at order 2 while `(SEMI,2)`, a `stmt` production that
+can never be a child of an `expr` node, sits at orders 0 and 1.  The proof of
+`genTA_sound₁` only ever appeals to `Fits` at pairs satisfying this guard.
+-/
+def ChildAt (g : CFG) (s s' : Sym) (k : Nat) : Prop :=
+  ∃ sp ∈ g.rankedProds, sp.1 = s ∧ ∃ sq ∈ g.rankedProds, sq.1 = s' ∧
+    sp.2.2[k]? = some (.nt sq.2.1)
+
+/--
 A symbol that may legitimately sit at child position `k` of
 an `s`-node at level `i` has a level at or above the one the transition demands.
 -/
 def Fits (g : CFG) (neg : List TreeExample) (b : Bool) (oa : Oa) (op : OrderMap) : Prop :=
   ∀ (s s' : Sym) (i k : Nat), i ∈ op.ordersOf s →
-    (∃ sp ∈ g.rankedProds, sp.1 = s') → s' ∉ trivSyms g b →
+    ChildAt g s s' k → s' ∉ trivSyms g b →
     (∀ e ∈ neg, ¬(e.top = s ∧ e.bot = s' ∧ (e.isAssoc = true → k = e.idx))) →
     ∃ j ∈ op.ordersOf s', ∀ l, oaFill oa s i k = .lvl l → l ≤ j
 
@@ -582,7 +597,8 @@ theorem run_exists (hfits : Fits g neg b oa op) :
                         TreeExample.matchesHere_node.mpr ⟨htop.symm, sq.1, us, hu, hbot.symm⟩
                       rw [hyes] at hno
                       simp at hno
-                    obtain ⟨j, hj, hle⟩ := hfits sp.1 sq.1 i k hi ⟨sq, hsq, rfl⟩ hsq' hfree
+                    obtain ⟨j, hj, hle⟩ := hfits sp.1 sq.1 i k hi
+                      ⟨sp, hsp, rfl, sq, hsq, rfl, by rw [hlhs']; exact hx⟩ hsq' hfree
                     obtain ⟨l, hl, -⟩ := oaFill_level oa sp.1 i k
                     obtain ⟨ss', hss', -⟩ := OrderMap.mem_ordersOf.mp hj
                     refine ⟨.lvl j, (ih _ humem B hmatch hnpu).2 hBt' _ _ rfl j hj, ?_⟩

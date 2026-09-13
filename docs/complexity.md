@@ -14,10 +14,10 @@ constant.
 
 | Algorithm | Lean | Claim | Where |
 | --- | --- | --- | --- |
-| 3.1 `LearnOaOp` | [`learnOaOp`](../Greta/Learn.lean#L57) | `O(\|F\|²)` time, `O(\|F\|)` additional space | §3.1.2, last paragraph before the final `O_p` of the example; Appendix C.1 |
+| 3.1 `LearnOaOp` | [`learnOaOp`](../Greta/Learn.lean#L62) | `O(\|F\|²)` time, `O(\|F\|)` additional space | §3.1.2, last paragraph before the final `O_p` of the example; Appendix C.1 |
 | 3.2 `GenTA` | [`genTA`](../Greta/GenTA.lean#L140) | `O(\|F\|)` time and space | §3.1.3, after the `HighToLow` paragraph; Appendix C.2 |
-| 3.3 `IntersectTA` | [`intersectTA`](../Greta/Intersect.lean#L168) | `O((\|Q_g\|·\|Q_r\|)² · \|Δ_g\|·\|Δ_r\|)` time, `O((\|Q_g\|·\|Q_r\|)² + \|Δ_g\|·\|Δ_r\|)` space | §3.2, before Theorem 3.2; Appendix C.3 |
-| 3.4 `FindDupStates` | [`findDupStates`](../Greta/Intersect.lean#L99) | `O(\|Q\|²·\|Δ\|)` time, `O(\|Q\|² + \|Δ\|)` space, as a step of Algorithm 3.3 | Appendix C.3 |
+| 3.3 `IntersectTA` | [`intersectTA`](../Greta/Intersect.lean#L177) | `O((\|Q_g\|·\|Q_r\|)² · \|Δ_g\|·\|Δ_r\|)` time, `O((\|Q_g\|·\|Q_r\|)² + \|Δ_g\|·\|Δ_r\|)` space | §3.2, before Theorem 3.2; Appendix C.3 |
+| 3.4 `FindDupStates` | [`findDupStates`](../Greta/Intersect.lean#L101) | `O(\|Q\|²·\|Δ\|)` time, `O(\|Q\|² + \|Δ\|)` space, as a step of Algorithm 3.3 | Appendix C.3 |
 
 Appendix C is in the extended version, [arXiv:2602.18166](https://arxiv.org/abs/2602.18166);
 the main body refers to it as the supplementary material.
@@ -27,7 +27,7 @@ the main body refers to it as the supplementary material.
 Appendix C.2 costs the main loop of Algorithm 3.2 at `O(r_max · |O_p|)` and concludes
 `O(|F|)`, which needs `|O_p| ∈ O(|F|)`. `O_p` is a set of symbol-and-order pairs, and
 Algorithm 3.1 as printed copies the non-conflicting symbols of an order to every order it
-creates ([`relayerOrder`](../Greta/Learn.lean#L38)), so one symbol can occur at many
+creates ([`relayerOrder`](../Greta/Learn.lean#L43)), so one symbol can occur at many
 orders. The paper's own example shows it: the `O_p` of §2.3.2 has 18 pairs for 10 symbols,
 and Figure 7 has 23 transitions, one per pair plus the ε-chain and the trivial symbol.
 Since the number of orders is itself bounded only by `|F|`, the output of `GenTA` can be
