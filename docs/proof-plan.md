@@ -5,8 +5,10 @@ Theorem 3.1 as hypotheses. This note is a plan for discharging them, and for the
 smaller gaps: the language-preservation of the optimisations in Algorithm 3.3, and
 Lemma B.2.
 
-It also records the two places where the statements have to *change* before they can be
-proved, because as published they are not quite true.
+It also records the six places where the constructions or the statements have to
+*change* before they can be proved, because as published they are not quite true — one of
+them badly enough that Theorem 3.1(1) fails on a three-line grammar with a single tree
+example. See [The minimal strengthenings](#the-minimal-strengthenings).
 
 ## Theorem 3.1
 
@@ -140,6 +142,156 @@ position). Two obligations:
   `t ∉ L⁻` rules those out; for pairs not in any conflict, Step 5(b) gives monotonicity.
 
 Then Step 4 turns the assignment into `t ∈ L_r`.
+
+## The minimal strengthenings
+
+Working through the plan above turns up six places where the constructions or the
+statements have to be strengthened before Theorem 3.1 is true, let alone provable: three
+changes to the constructions and three side conditions on the input. `S1` and `S2` are
+already applied in this repository — `S2` because without it the theorem is demonstrably
+false, on a three-line grammar with a single tree example.
+
+### S1. Every associativity restriction of a symbol must be applied
+
+[`genTA`](../Greta/GenTA.lean#L38) sends the child at each position `O_a` forbids one
+level deeper. If a symbol carries two restrictions — the user rejected `Eg(s,s,0)` *and*
+`Eg(s,s,2)`, so `s` may nest on neither side — only one may be applied, or Theorem 3.1(2)
+fails for the other. The fix is to test membership rather than take the first position:
+
+```lean
+let forbidden := oa.positionsOf s
+deltaGen g trivNts (stateName i)
+  (fun k => if forbidden.contains k then stateName (i + 1) else stateName i) s
+```
+
+No effect when a symbol carries at most one restriction, which is the common case.
+
+### S2. A symbol whose only conflict is with itself must still be re-layered
+
+`S_C` in Section 3 is the set of symbols involved in a precedence **or an associativity**
+related conflict, and `S_E` is its partition into maximal pairwise-conflicting subsets, so
+a symbol with an associativity restriction and no precedence partner forms a *singleton*
+member of `S_E`. Those singletons are load-bearing: the last clause of Algorithm 3.1 —
+
+> **if** `i = size − 1 ∧ ∃ s ∈ ithSymbols, (s, _) ∈ O_a` **then** `O_tmp ← pushN(O_tmp, o+i+1, 1)` …
+
+— only fires for symbols that are in a group, and it is what leaves an order *above* the
+symbol for `GenTA` to send the forbidden child to.
+
+Build `M_to` without the singletons and the theorem fails outright. On
+`S → S + S | S * S | (S) | x | y | z` with the single rejected example
+`Eg((PLUS,3), (PLUS,3), 2)`, `O_p` is `{0 ↦ everything}`, so `m = 0`, and the transition
+`e₀ ←(PLUS,3) e₀ PLUS e₁` names a state `e₁` that does not exist:
+
+```
+states e0
+finals e0
+trans e0 0 PLUS 3 S:e0 T:PLUS S:e1
+...
+```
+
+Nothing can satisfy `e₁`, so **every** tree containing a `+` is rejected — 7 of the
+grammar's 15 trees at depth 3 survive, and `x + y`, which the user never excluded, is
+among the losses. That is `L_r ⊉ L_g \ L⁻` on a three-line grammar with one example.
+
+With the singleton group included, `O_p` becomes `{0 ↦ everything, 1 ↦ everything but
+PLUS}` and `A_r` is what it should be: 13 of the 15 trees survive, and the two that do not
+are exactly the right-associative nestings. [`toMapOf`](../Greta/Learn.lean#L96) builds the
+singletons; `testAssocOnly` in `Greta/Test.lean` is the regression test.
+
+So the strengthening is a sentence in §3.1.2 rather than a change to Algorithm 3.1: `M_to`
+must range over all of `S_E`, singletons included. Once it does,
+
+> `(s, i) ∈ O_p ∧ (s, p) ∈ O_a ⟹ i < m`
+
+becomes a **lemma** about `learnOaOp` rather than an assumption — which is what Step 4 of
+the plan needs.
+
+### S3. `O_a` positions must name a non-trivial nonterminal
+
+`fillRhs` leaves terminals alone, and leaves the nonterminals of trivial symbols at their
+own state. So an `O_a` position pointing at either is silently dropped and the restriction
+has no effect. The condition
+
+> for every `(s, p) ∈ O_a`, `Prod(s).rhs[p]` is a nonterminal that is not the left-hand
+> side of a trivial symbol
+
+is *derivable* when `O_a` comes from well-formed tree examples — the nested node of
+`Eg(s,s,p)` is an `s`-rooted subtree, hence a nonterminal, and a trivial nonterminal
+produces a single terminal so it cannot root one. It has to be stated as a hypothesis on
+`O_a` all the same, because Algorithm 3.2 takes `O_a` as an arbitrary input.
+
+### S4. `M_to` must be well formed
+
+Algorithm 3.1 takes `M_to` as an input, so the properties `toMapOf` happens to give it
+have to be hypotheses:
+
+* each symbol occurs in at most one group;
+* each group is duplicate-free;
+* every symbol of a group at order `o` has `o` as its order in `O_bp`.
+
+They are what makes "a conflicting symbol has exactly one order in `O_p`" true, which
+Theorem 3.1(2) uses to conclude that *all* orders of `s₂` lie below *all* orders of `s₁`.
+
+### S5. Cycles, for statement (2)
+
+`HighToLow` emits `e_{o_h} ←_{s_h} … e_{o_l} …` with `o_l < o_h`, which is exactly the
+parent-above-child shape that Step 3 of the plan otherwise rules out. If `s_h` is the top
+symbol of a rejected example, the cycle transition re-permits the very pattern `O_p` was
+arranged to forbid: with `s₁ = s_h` at order 5, `o_l = 0`, and `s₂` at order 3, the child
+needs only `0 ≤ 3` and the forbidden tree is accepted again. The associativity case is
+worse, because `GenTA` builds the cycle transition with `fun _ => stateName o_l` and so
+ignores `O_a` altogether.
+
+Minimal side condition:
+
+> for every `((s_l, o_l), (s_h, o_h)) ∈ HighToLow(G, O_p)` and every rejected example with
+> top symbol `s_h` and bottom symbol `s₂`, every order of `s₂` is strictly below `o_l`.
+
+Simpler, decidable, and strictly stronger:
+
+> no symbol reported as `s_h` by `HighToLow` is the top symbol of a rejected example.
+
+Simplest of all, and what we would assume first:
+
+> `HighToLow(G, O_bp) = ∅` — no production of `G` takes a nonterminal at level `a` to a
+> nonterminal at a level below `a`.
+
+The last one holds for the paper's own running example and for every grammar in `test/`,
+which is why `GenTA` emits no cycle transitions for any of them. It is decidable, so
+`greta` can check it and say so when it does not hold, rather than the theorem quietly not
+applying.
+
+### S6. Cycles, for statement (1)
+
+The converse problem. Dropping the cycle transitions makes (2) safe but breaks (1) on any
+grammar whose level graph is not monotone, because the level assignment of Step 6 has
+nowhere to go when a child's nonterminal sits *above* its parent's.
+
+Keeping them is not enough either, as published: `δ_F(e_{o_h}, ē_{o_l}, s_h)` sends **all**
+of the production's nonterminals to the single level `o_l`, so a production with two
+nonterminal children that need different levels is not covered. The strengthening is to
+give each nonterminal `B` on the right-hand side its own state — the lowest order of any
+symbol of `B` — rather than one `o_l` for all of them. That is still one transition per
+pair and it is what the level assignment needs.
+
+Under `HighToLow(G, O_bp) = ∅` the question does not arise, which is the other reason to
+take that as the first assumption and relax it later.
+
+### Summary
+
+| | Strengthening | Kind | Needed for | Status |
+| --- | --- | --- | --- | --- |
+| S1 | apply every `O_a` position, not the first | construction, one line | 3.1(2) | applied |
+| S2 | singleton `S_E` groups reach `M_to` | construction, one line | 3.1(1) | applied; theorem is false without it |
+| S3 | `O_a` positions name non-trivial nonterminals | hypothesis on the input | 3.1(2) | to state |
+| S4 | `M_to` well formed | hypothesis on the input | 3.1(2) | to state |
+| S5 | no cycle head is a conflict top | side condition, decidable | 3.1(2) | to state |
+| S6 | per-child levels in the cycle rule | construction | 3.1(1) | to do, or assume acyclicity |
+
+With S1–S5 in place and `HighToLow(G, O_bp) = ∅` standing in for S6, both halves of
+Theorem 3.1 are, as far as this analysis goes, provable by the plan above, and the only
+remaining work is the eight lemmas.
 
 ## Two statements that have to change first
 

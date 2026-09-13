@@ -89,15 +89,21 @@ def orderGroup (lt : List (Sym × Sym)) (ss : List Sym) : List Sym :=
     else true
 
 /--
-Build `M_to` from a base precedence order and the unselected examples: every order of
-`obp` that contains at least two symbols mentioned in a precedence conflict yields one
-totally ordered group.
+Build `M_to` from a base precedence order and the unselected examples.
+
+`S_C` of Section 3 is the set of symbols involved in a precedence *or an associativity*
+related conflict, and `S_E` is its partition into maximal pairwise-conflicting subsets, so
+a symbol whose only conflict is with itself — an associativity restriction and no
+precedence partner — forms a singleton group.  Those singletons matter: they are what
+makes the last clause of Algorithm 3.1 fire, which is what leaves an order above the
+symbol for `GenTA` to send the forbidden child to.  Dropping them leaves the symbol at the
+top order, `e_{i+1}` does not exist, and every tree using the symbol is rejected.
 -/
 def toMapOf (obp : OrderMap) (neg : List TreeExample) : ToMap :=
   let lt := precPairs neg
-  let involved := (lt.flatMap fun p => [p.1, p.2]).dedup
+  let involved := (neg.flatMap fun e => [e.top, e.bot]).dedup
   obp.filterMap fun p =>
     let here : List Sym := p.2.filter fun s => involved.contains s
-    if 2 ≤ here.length then some (p.1, [orderGroup lt here]) else none
+    if here.isEmpty then none else some (p.1, [orderGroup lt here])
 
 end Greta

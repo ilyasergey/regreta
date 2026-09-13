@@ -220,6 +220,41 @@ def testRunningExampleIntersection (r : Report) : IO Report := do
   r ← check r "A_r accepts at e0" (ar.finals == ["e0"])
   testIntersectionAgainstProduct r "running example" ar g.toTA 4
 
+/-- `S -> S + S | S * S | ( S ) | x | y | z`, the grammar of Section 1. -/
+def arith : CFG where
+  nonterms := ["S"]
+  terms    := ["PLUS", "STAR", "LPAREN", "RPAREN", "X", "Y", "Z"]
+  starts   := ["S"]
+  prods    :=
+    [ ("S", [nt "S", tm "PLUS", nt "S"])        -- 0
+    , ("S", [nt "S", tm "STAR", nt "S"])        -- 1
+    , ("S", [tm "LPAREN", nt "S", tm "RPAREN"]) -- 2
+    , ("S", [tm "X"])                           -- 3
+    , ("S", [tm "Y"])                           -- 4
+    , ("S", [tm "Z"]) ]                         -- 5
+
+/--
+A symbol whose only conflict is with itself still has to be re-layered, so that `GenTA`
+has a level to send the forbidden child to.  Section 3 puts such a symbol in a singleton
+member of `S_E`; leaving it out leaves it at the top order, `e_{i+1}` does not exist, and
+every tree using the symbol is rejected.  See docs/proof-plan.md.
+-/
+def testAssocOnly (r : Report) : IO Report := do
+  let g := arith
+  let neg : List TreeExample := [{ top := sym! g 0, bot := sym! g 0, idx := 2 }]
+  let obp := g.baseOrder
+  let (oa, op) := learnOaOp g neg (toMapOf obp neg)
+  let ar := genTA g oa op
+  let x := Tree.node (sym! g 3) [.leaf "X"]
+  let plus := fun a b => Tree.node (sym! g 0) [a, .leaf "PLUS", b]
+  let mut r := r
+  r ← check r "an associativity-only conflict still creates a level above the symbol"
+        (1 ≤ op.maxOrder) s!"max order {op.maxOrder}"
+  r ← check r "a single PLUS is accepted" (ar.langB (plus x x))
+  r ← check r "the left-associative nesting is accepted" (ar.langB (plus (plus x x) x))
+  r ← check r "the right-associative nesting is rejected" (!(ar.langB (plus x (plus x x))))
+  testIntersectionAgainstProduct r "arith, associativity only" ar g.toTA 4
+
 def testRandom (r : Report) (rounds : Nat) : IO Report := do
   let mut r := r
   let mut seed := 20260913
@@ -237,6 +272,8 @@ def runAll : IO UInt32 := do
   r ← testRunningExample r
   IO.println "learning and intersection"
   r ← testRunningExampleIntersection r
+  IO.println "associativity-only conflicts"
+  r ← testAssocOnly r
   IO.println "randomised intersection"
   r ← testRandom r 6
   IO.println s!"\n{r.passed} passed, {r.failed} failed"

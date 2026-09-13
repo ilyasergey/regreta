@@ -43,12 +43,14 @@ def genTA (g : CFG) (oa : Oa) (op : OrderMap) (excludeTrivial : Bool := true) : 
   let trivNts := (triv.filterMap fun f => (g.prodOfSym f).map Prod.fst).dedup
   let trivStates := trivNts
   -- Transitions for non-trivial symbols.
+  -- Every position `O_a` forbids sends its child one level deeper, so that a subtree
+  -- rooted at the same symbol — which can only reach this level or a shallower one —
+  -- cannot sit there.  All of a symbol's restrictions apply, not just the first.
   let nonTriv : List (Transition String) := op.flatMap fun oss =>
     oss.2.filterMap fun s =>
-      match (oa.positionsOf s).head? with
-      | some p => deltaGen g trivNts (stateName oss.1)
-                    (fun k => if k = p then stateName (oss.1 + 1) else stateName oss.1) s
-      | none   => deltaGen g trivNts (stateName oss.1) (fun _ => stateName oss.1) s
+      let forbidden := oa.positionsOf s
+      deltaGen g trivNts (stateName oss.1)
+        (fun k => if forbidden.contains k then stateName (oss.1 + 1) else stateName oss.1) s
   -- Transitions for trivial symbols: they keep their own nonterminal as a state.
   let trivTrans : List (Transition String) := triv.filterMap fun s =>
     (g.prodOfSym s).map fun p => ⟨p.1, s, fillRhs [] p.2 (fun _ => p.1)⟩

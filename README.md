@@ -90,8 +90,9 @@ by testing against the verified product construction.
 [`docs/proof-plan.md`](docs/proof-plan.md) sets out how to close these gaps: the shape
 lemmas about `GenTA`'s output that turn Lemma B.1 into arithmetic on levels, the
 specification of `LearnOaOp` that Theorem 3.1(1) needs, the bisimulations the three
-optimisations need — and the two places where the published statements have to be changed
-before they can be proved at all.
+optimisations need — and the six strengthenings the constructions and the statements need
+before they can be proved at all. One of those is not optional: without it Theorem 3.1(1)
+is false on a three-line grammar with a single tree example.
 
 ## Building
 
