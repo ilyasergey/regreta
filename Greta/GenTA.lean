@@ -68,6 +68,15 @@ def fillRhs (tn : List Nonterminal) (rhs : List SigmaElt) (fill : Nat → GState
     List (Beta GState) :=
   fillRhsFrom tn fill 0 rhs
 
+theorem length_fillRhsFrom (tn : List Nonterminal) (fill : Nat → GState) :
+    ∀ (k : Nat) (xs : List SigmaElt), (fillRhsFrom tn fill k xs).length = xs.length
+  | _, []      => rfl
+  | k, _ :: xs => by simp [fillRhsFrom, length_fillRhsFrom tn fill (k + 1) xs]
+
+@[simp] theorem length_fillRhs (tn : List Nonterminal) (rhs : List SigmaElt)
+    (fill : Nat → GState) : (fillRhs tn rhs fill).length = rhs.length :=
+  length_fillRhsFrom tn fill 0 rhs
+
 theorem getElem?_fillRhsFrom (tn : List Nonterminal) (fill : Nat → GState) :
     ∀ (k : Nat) (xs : List SigmaElt) (n : Nat),
       (fillRhsFrom tn fill k xs)[n]? = (xs[n]?).map (fillOne tn fill (k + n))

@@ -63,9 +63,47 @@ theorem rankedProds_sym_ne_eps {g : CFG} {sp : Sym × Production} (h : sp ∈ g.
   obtain ⟨⟨p, i⟩, _, rfl⟩ := h
   exact symOf_ne_epsSym i p
 
+theorem mem_rankedProds_iff {g : CFG} {sp : Sym × Production} :
+    sp ∈ g.rankedProds ↔
+      ∃ n : Nat, ∃ h : n < g.prods.length, sp = (symOf n g.prods[n], g.prods[n]) := by
+  simp only [rankedProds, List.mem_map]
+  constructor
+  · rintro ⟨⟨p, n⟩, hmem, rfl⟩
+    obtain ⟨-, hlt, hp⟩ := List.mem_zipIdx hmem
+    simp only [Nat.sub_zero, Nat.zero_add] at hlt hp
+    exact ⟨n, hlt, by simp [hp]⟩
+  · rintro ⟨n, hlt, rfl⟩
+    refine ⟨(g.prods[n], n), ?_, rfl⟩
+    have : g.prods.zipIdx[n]? = some (g.prods[n], n) := by
+      simp [List.getElem?_zipIdx, List.getElem?_eq_getElem hlt]
+    exact List.mem_of_getElem? this
+
+/-- Distinct productions carry distinct ranked symbols: the identifier is the index. -/
+theorem rankedProds_inj {g : CFG} {sp sq : Sym × Production}
+    (hp : sp ∈ g.rankedProds) (hq : sq ∈ g.rankedProds) (h : sp.1 = sq.1) : sp = sq := by
+  obtain ⟨n, hn, rfl⟩ := mem_rankedProds_iff.mp hp
+  obtain ⟨m, hm, rfl⟩ := mem_rankedProds_iff.mp hq
+  have : ((n : Int)) = (m : Int) := congrArg Sym.id h
+  have : n = m := by omega
+  subst this; rfl
+
 /-- `Prod` of Definition A.9: the production a ranked symbol came from. -/
 def prodOfSym (g : CFG) (f : Sym) : Option Production :=
   (g.rankedProds.find? fun sp => sp.1 = f).map Prod.snd
+
+theorem prodOfSym_eq {g : CFG} {sp : Sym × Production} (h : sp ∈ g.rankedProds) :
+    g.prodOfSym sp.1 = some sp.2 := by
+  simp only [prodOfSym]
+  cases hf : g.rankedProds.find? (fun x => x.1 = sp.1) with
+  | none =>
+      rw [List.find?_eq_none] at hf
+      exact absurd (by simp : (sp.1 = sp.1)) (by simpa using hf sp h)
+  | some b =>
+      have hb : b ∈ g.rankedProds := List.mem_of_find?_eq_some hf
+      have hsym : b.1 = sp.1 := by
+        have := List.find?_some hf; simpa using this
+      rw [rankedProds_inj hb h hsym]
+      rfl
 
 /-- Right-hand-side elements become transition right-hand-side entries. -/
 def betaOf : SigmaElt → Beta Nonterminal
@@ -108,6 +146,59 @@ def matchRhs (g : CFG) : List Tree → List SigmaElt → Bool
   termination_by ts _ => sizeOf ts
 
 end
+
+theorem isParseTreeOf_node {g : CFG} {A : Nonterminal} {f : Sym} {ts : List Tree} :
+    g.isParseTreeOf A (.node f ts) = true ↔
+      ∃ sp ∈ g.rankedProds, sp.1 = f ∧ sp.2.1 = A ∧ g.matchRhs ts sp.2.2 = true := by
+  simp only [isParseTreeOf, List.any_eq_true, Bool.and_eq_true, decide_eq_true_eq]
+  constructor
+  · rintro ⟨sp, hsp, ⟨hf, hA⟩, hm⟩; exact ⟨sp, hsp, hf, hA, hm⟩
+  · rintro ⟨sp, hsp, hf, hA, hm⟩; exact ⟨sp, hsp, ⟨hf, hA⟩, hm⟩
+
+@[simp] theorem isParseTreeOf_leaf {g : CFG} {A : Nonterminal} {a : Terminal} :
+    g.isParseTreeOf A (.leaf a) = false := by simp [isParseTreeOf]
+
+/-- `matchRhs` relates the children and the right-hand side positionwise. -/
+theorem matchRhs_get {g : CFG} :
+    ∀ (ts : List Tree) (rs : List SigmaElt), g.matchRhs ts rs = true →
+      ∀ (k : Nat) (t : Tree) (x : SigmaElt), ts[k]? = some t → rs[k]? = some x →
+        (match x with
+         | .term a => isLeafOf t a = true
+         | .nt B   => g.isParseTreeOf B t = true) := by
+  intro ts
+  induction ts with
+  | nil => intro rs _ k t x ht _; simp at ht
+  | cons u us ih =>
+      intro rs hm k t x ht hx
+      cases rs with
+      | nil => simp [matchRhs] at hm
+      | cons r rs =>
+          cases k with
+          | zero =>
+              simp only [List.getElem?_cons_zero, Option.some.injEq] at ht hx
+              subst ht; subst hx
+              cases r with
+              | term a => simp only [matchRhs, Bool.and_eq_true] at hm; exact hm.1
+              | nt B => simp only [matchRhs, Bool.and_eq_true] at hm; exact hm.1
+          | succ k =>
+              have hm' : g.matchRhs us rs = true := by
+                cases r <;> simp only [matchRhs, Bool.and_eq_true] at hm <;> exact hm.2
+              simp only [List.getElem?_cons_succ] at ht hx
+              exact ih rs hm' k t x ht hx
+
+theorem matchRhs_length {g : CFG} :
+    ∀ (ts : List Tree) (rs : List SigmaElt), g.matchRhs ts rs = true → ts.length = rs.length := by
+  intro ts
+  induction ts with
+  | nil => intro rs h; cases rs <;> simp_all [matchRhs]
+  | cons u us ih =>
+      intro rs h
+      cases rs with
+      | nil => simp [matchRhs] at h
+      | cons r rs =>
+          have : g.matchRhs us rs = true := by
+            cases r <;> simp only [matchRhs, Bool.and_eq_true] at h <;> exact h.2
+          simp [ih rs this]
 
 /-- Complete parse trees of `g`: `L_G` of Definition A.2. -/
 def isParseTree (g : CFG) (t : Tree) : Bool :=

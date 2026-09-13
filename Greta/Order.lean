@@ -22,6 +22,22 @@ def ordersOf (m : OrderMap) (s : Sym) : List Nat :=
 /-- Largest order occurring in the map. -/
 def maxOrder (m : OrderMap) : Nat := m.foldl (fun acc p => max acc p.1) 0
 
+private theorem le_foldl_self : ∀ (l : List (Nat × List Sym)) (a : Nat),
+    a ≤ l.foldl (fun acc q => max acc q.1) a
+  | [],      a => Nat.le_refl a
+  | q :: qs, a => Nat.le_trans (Nat.le_max_left a q.1) (le_foldl_self qs (max a q.1))
+
+private theorem le_foldl_of_mem : ∀ (l : List (Nat × List Sym)) (a i : Nat) (ss : List Sym),
+    (i, ss) ∈ l → i ≤ l.foldl (fun acc q => max acc q.1) a
+  | [],      _, _, _,  h => absurd h (by simp)
+  | q :: qs, a, i, ss, h => by
+      rcases List.mem_cons.mp h with rfl | h
+      · exact Nat.le_trans (Nat.le_max_right a i) (le_foldl_self qs (max a i))
+      · exact le_foldl_of_mem qs (max a q.1) i ss h
+
+theorem le_maxOrder {m : OrderMap} {i : Nat} {ss : List Sym} (h : (i, ss) ∈ m) :
+    i ≤ m.maxOrder := le_foldl_of_mem m 0 i ss h
+
 /-- All symbols mentioned. -/
 def symbols (m : OrderMap) : List Sym := (m.flatMap Prod.snd).dedup
 

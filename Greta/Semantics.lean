@@ -135,6 +135,36 @@ theorem matchAll_get {A : TA σ} {tbl : EpsTable σ} :
               simp only [List.getElem?_cons_succ] at ht hb
               exact ih cs hm' k t b ht hb
 
+/-- Conversely, positionwise agreement gives a match. -/
+theorem matchAll_of_forall {A : TA σ} {tbl : EpsTable σ} :
+    ∀ (ts : List Tree) (bs : List (Beta σ)), ts.length = bs.length →
+      (∀ (k : Nat) (t : Tree) (b : Beta σ), ts[k]? = some t → bs[k]? = some b →
+        (match b with
+         | .term a  => isLeafOf t a = true
+         | .state q => ∃ r ∈ A.evalT tbl t, q ∈ tbl r)) →
+      A.matchAll tbl ts bs = true := by
+  intro ts
+  induction ts with
+  | nil => intro bs hlen _; cases bs with
+    | nil => simp [matchAll]
+    | cons _ _ => simp at hlen
+  | cons u us ih =>
+      intro bs hlen h
+      cases bs with
+      | nil => simp at hlen
+      | cons c cs =>
+          have hrest : A.matchAll tbl us cs = true := by
+            refine ih cs (by simpa using hlen) fun k t b ht hb => ?_
+            exact h (k + 1) t b (by simpa using ht) (by simpa using hb)
+          have hhd := h 0 u c (by simp) (by simp)
+          cases c with
+          | term a =>
+              simp only [matchAll, Bool.and_eq_true]
+              exact ⟨hhd, hrest⟩
+          | state q =>
+              simp only [matchAll, Bool.and_eq_true, List.any_eq_true, decide_eq_true_eq]
+              exact ⟨hhd, hrest⟩
+
 /-- A child that is a node cannot be matched against a terminal. -/
 theorem matchAll_state_of_node {A : TA σ} {tbl : EpsTable σ} {ts : List Tree}
     {bs : List (Beta σ)} (hm : A.matchAll tbl ts bs = true) {k : Nat} {f : Sym} {us : List Tree}

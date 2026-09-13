@@ -81,6 +81,20 @@ theorem occursIn_node (e : TreeExample) (f : Sym) (ts : List Tree) :
     e.occursIn (.node f ts) = (e.matchesHere (.node f ts) || e.occursInAny ts) := by
   simp [occursIn]
 
+theorem occursIn_of_mem {e : TreeExample} {f : Sym} {ts : List Tree} {u : Tree}
+    (h : e.occursIn (.node f ts) = false) (hu : u ∈ ts) : e.occursIn u = false := by
+  rw [occursIn_node, Bool.or_eq_false_iff] at h
+  obtain ⟨-, hany⟩ := h
+  revert hu
+  induction ts with
+  | nil => intro hu; simp at hu
+  | cons v vs ih =>
+      simp only [occursInAny, Bool.or_eq_false_iff] at hany
+      intro hu
+      rcases List.mem_cons.mp hu with rfl | hu
+      · exact hany.1
+      · exact ih hany.2 hu
+
 theorem occursInAny_false (e : TreeExample) :
     ∀ ts : List Tree, (∀ t ∈ ts, e.occursIn t = false) → e.occursInAny ts = false := by
   intro ts
