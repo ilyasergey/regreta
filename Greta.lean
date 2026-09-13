@@ -9,6 +9,7 @@ import Greta.Learn
 import Greta.GenTA
 import Greta.Intersect
 import Greta.Soundness
+import Greta.GenTASpec
 import Greta.Serialize
 import Greta.Enumerate
 import Greta.Test

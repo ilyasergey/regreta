@@ -54,12 +54,33 @@ entry becomes `fill k` when it is a nonterminal.  Nonterminals associated with *
 symbols keep their own state, as footnote 3 of Section 3.1.3 requires.  This is the
 `δ`-generator `δ_F` of Algorithm 3.2.
 -/
+def fillOne (tn : List Nonterminal) (fill : Nat → GState) (k : Nat) : SigmaElt → Beta GState
+  | .term a => .term a
+  | .nt B   => if tn.contains B then .state (.triv B) else .state (fill k)
+
+/-- `fillRhs`, with an explicit position counter. -/
+def fillRhsFrom (tn : List Nonterminal) (fill : Nat → GState) :
+    Nat → List SigmaElt → List (Beta GState)
+  | _, []      => []
+  | k, x :: xs => fillOne tn fill k x :: fillRhsFrom tn fill (k + 1) xs
+
 def fillRhs (tn : List Nonterminal) (rhs : List SigmaElt) (fill : Nat → GState) :
     List (Beta GState) :=
-  rhs.zipIdx.map fun xi =>
-    match xi.1 with
-    | .term a => .term a
-    | .nt B   => if tn.contains B then .state (.triv B) else .state (fill xi.2)
+  fillRhsFrom tn fill 0 rhs
+
+theorem getElem?_fillRhsFrom (tn : List Nonterminal) (fill : Nat → GState) :
+    ∀ (k : Nat) (xs : List SigmaElt) (n : Nat),
+      (fillRhsFrom tn fill k xs)[n]? = (xs[n]?).map (fillOne tn fill (k + n))
+  | _, [],      n     => by cases n <;> simp [fillRhsFrom]
+  | k, _ :: xs, 0     => by simp [fillRhsFrom]
+  | k, _ :: xs, n + 1 => by
+      simp only [fillRhsFrom, List.getElem?_cons_succ, getElem?_fillRhsFrom tn fill (k + 1) xs n]
+      congr 2
+      omega
+
+theorem getElem?_fillRhs (tn : List Nonterminal) (rhs : List SigmaElt) (fill : Nat → GState)
+    (n : Nat) : (fillRhs tn rhs fill)[n]? = (rhs[n]?).map (fillOne tn fill n) := by
+  simpa [fillRhs] using getElem?_fillRhsFrom tn fill 0 rhs n
 
 /-- `δ_F(target, fill, f)`: the transition for symbol `f` with the given target state. -/
 def deltaGen (g : CFG) (tn : List Nonterminal) (target : GState) (fill : Nat → GState)

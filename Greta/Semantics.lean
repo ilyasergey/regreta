@@ -66,6 +66,86 @@ theorem lang_iff_langB (A : TA σ) (t : Tree) : A.Lang t ↔ A.langB t = true :=
 instance (A : TA σ) (t : Tree) : Decidable (A.Lang t) :=
   decidable_of_iff _ (A.lang_iff_langB t).symm
 
+/-! ### Inverting the evaluator -/
+
+@[simp] theorem evalT_leaf (A : TA σ) (tbl : EpsTable σ) (a : Terminal) :
+    A.evalT tbl (.leaf a) = [] := by simp [evalT]
+
+/-- A state is assigned to a node exactly when some transition for its constructor fits. -/
+theorem mem_evalT_node {A : TA σ} {tbl : EpsTable σ} {f : Sym} {ts : List Tree} {q : σ} :
+    q ∈ A.evalT tbl (.node f ts) ↔
+      ∃ tr ∈ A.realTrans, tr.sym = f ∧ A.matchAll tbl ts tr.rhs = true ∧ tr.target = q := by
+  simp only [evalT, List.mem_filterMap]
+  constructor
+  · rintro ⟨tr, htr, hif⟩
+    split at hif
+    · next hc =>
+        simp only [Option.some.injEq] at hif
+        exact ⟨tr, htr, hc.1, hc.2, hif⟩
+    · simp at hif
+  · rintro ⟨tr, htr, hs, hm, ht⟩
+    exact ⟨tr, htr, by rw [if_pos ⟨hs, hm⟩, ht]⟩
+
+/-- Matching forces the children and the right-hand side to have the same length. -/
+theorem matchAll_length {A : TA σ} {tbl : EpsTable σ} :
+    ∀ (ts : List Tree) (bs : List (Beta σ)), A.matchAll tbl ts bs = true →
+      ts.length = bs.length := by
+  intro ts
+  induction ts with
+  | nil => intro bs h; cases bs <;> simp_all [matchAll]
+  | cons u us ih =>
+      intro bs h
+      cases bs with
+      | nil => simp [matchAll] at h
+      | cons c cs =>
+          have : A.matchAll tbl us cs = true := by
+            cases c <;> simp only [matchAll, Bool.and_eq_true] at h <;> exact h.2
+          simp [ih cs this]
+
+/-- Matching relates the children and the right-hand side positionwise. -/
+theorem matchAll_get {A : TA σ} {tbl : EpsTable σ} :
+    ∀ (ts : List Tree) (bs : List (Beta σ)), A.matchAll tbl ts bs = true →
+      ∀ (k : Nat) (t : Tree) (b : Beta σ), ts[k]? = some t → bs[k]? = some b →
+        (match b with
+         | .term a  => isLeafOf t a = true
+         | .state q => ∃ r ∈ A.evalT tbl t, q ∈ tbl r) := by
+  intro ts
+  induction ts with
+  | nil => intro bs _ k t b ht _; simp at ht
+  | cons u us ih =>
+      intro bs hm k t b ht hb
+      cases bs with
+      | nil => simp [matchAll] at hm
+      | cons c cs =>
+          cases k with
+          | zero =>
+              simp only [List.getElem?_cons_zero, Option.some.injEq] at ht hb
+              subst ht; subst hb
+              cases c with
+              | term a =>
+                  simp only [matchAll, Bool.and_eq_true] at hm
+                  exact hm.1
+              | state q =>
+                  simp only [matchAll, Bool.and_eq_true, List.any_eq_true,
+                    decide_eq_true_eq] at hm
+                  exact hm.1
+          | succ k =>
+              have hm' : A.matchAll tbl us cs = true := by
+                cases c <;> simp only [matchAll, Bool.and_eq_true] at hm <;> exact hm.2
+              simp only [List.getElem?_cons_succ] at ht hb
+              exact ih cs hm' k t b ht hb
+
+/-- A child that is a node cannot be matched against a terminal. -/
+theorem matchAll_state_of_node {A : TA σ} {tbl : EpsTable σ} {ts : List Tree}
+    {bs : List (Beta σ)} (hm : A.matchAll tbl ts bs = true) {k : Nat} {f : Sym} {us : List Tree}
+    (ht : ts[k]? = some (.node f us)) (hlen : bs[k]?.isSome) :
+    ∃ q, bs[k]? = some (.state q) ∧ ∃ r ∈ A.evalT tbl (.node f us), q ∈ tbl r := by
+  obtain ⟨b, hb⟩ := Option.isSome_iff_exists.mp hlen
+  have := matchAll_get ts bs hm k _ b ht hb
+  cases b with
+  | term a => simp only [isLeafOf] at this; exact absurd this (by simp)
+  | state q => exact ⟨q, hb, this⟩
+
 /-! ### The evaluator does not depend on the choice of ε-closure table -/
 
 theorem matchAll_congr {A : TA σ} {t₁ t₂ : EpsTable σ}

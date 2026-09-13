@@ -28,17 +28,35 @@ def isAssoc (e : TreeExample) : Bool := e.top == e.bot
 /-- An example is precedence-related when its two symbols differ. -/
 def isPrec (e : TreeExample) : Bool := !e.isAssoc
 
-/-- The `idx`-th child of a node, if the tree is a node with that constructor. -/
-def childAt (t : Tree) (f : Sym) (i : Nat) : Option Tree :=
-  match t with
-  | .node g ts => if g = f then ts[i]? else none
-  | .leaf _    => none
+/-- The constructor at the root of a tree, if it has one. -/
+def rootSym : Tree → Option Sym
+  | .leaf _   => none
+  | .node f _ => some f
 
 /-- `t` is an occurrence of the pattern `Eg(top, bot, idx)` at its root. -/
 def matchesHere (e : TreeExample) (t : Tree) : Bool :=
-  match childAt t e.top e.idx with
-  | some (.node g _) => g == e.bot
-  | _                => false
+  match t with
+  | .leaf _    => false
+  | .node f ts => f == e.top && (ts[e.idx]?.bind rootSym) == some e.bot
+
+theorem matchesHere_node {e : TreeExample} {f : Sym} {ts : List Tree} :
+    e.matchesHere (.node f ts) = true ↔
+      f = e.top ∧ ∃ h us, ts[e.idx]? = some (.node h us) ∧ h = e.bot := by
+  simp only [matchesHere, Bool.and_eq_true, beq_iff_eq]
+  constructor
+  · rintro ⟨hf, hb⟩
+    refine ⟨hf, ?_⟩
+    cases hget : ts[e.idx]? with
+    | none => rw [hget] at hb; simp at hb
+    | some t =>
+        cases t with
+        | leaf a => rw [hget] at hb; simp [rootSym] at hb
+        | node h us =>
+            rw [hget] at hb
+            simp only [Option.bind_some, rootSym, Option.some.injEq] at hb
+            exact ⟨h, us, rfl, hb⟩
+  · rintro ⟨hf, h, us, hget, rfl⟩
+    exact ⟨hf, by rw [hget]; simp [rootSym]⟩
 
 mutual
 
@@ -55,6 +73,24 @@ def occursInAny (e : TreeExample) : List Tree → Bool
   termination_by ts => sizeOf ts
 
 end
+
+theorem occursIn_leaf (e : TreeExample) (a : Terminal) : e.occursIn (.leaf a) = false := by
+  simp [occursIn]
+
+theorem occursIn_node (e : TreeExample) (f : Sym) (ts : List Tree) :
+    e.occursIn (.node f ts) = (e.matchesHere (.node f ts) || e.occursInAny ts) := by
+  simp [occursIn]
+
+theorem occursInAny_false (e : TreeExample) :
+    ∀ ts : List Tree, (∀ t ∈ ts, e.occursIn t = false) → e.occursInAny ts = false := by
+  intro ts
+  induction ts with
+  | nil => intro _; simp [occursInAny]
+  | cons t ts ih =>
+      intro h
+      simp only [occursInAny, Bool.or_eq_false_iff]
+      exact ⟨h t (List.mem_cons_self ..), ih fun u hu => h u (List.mem_cons_of_mem _ hu)⟩
+
 
 end TreeExample
 
