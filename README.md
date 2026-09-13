@@ -1,4 +1,4 @@
-# greta-lean
+# How Dare You!
 
 A Lean 4 formalisation of *Grammar Repair with Examples and Tree Automata* (Yunjeong Lee,
 Gokul Rajiv, Ilya Sergey, OOPSLA 2026), and a differential test of the formalised
