@@ -25,7 +25,6 @@ that anything *new* that diverges is reported as a failure.
 | [D7](#d7-algorithm-31-as-printed-is-not-what-learnerml-does) | Algorithm 3.1 as printed is not what `learner.ml` does | paper vs. code | Lemma B.2's proof does not apply to the code |
 | [D8](#d8-the-trivial-symbol-optimisation-of-311-is-not-implemented) | The trivial-symbol optimisation of §3.1.1 is not implemented | paper vs. code | the paper's `O_bp` is not what the tool computes |
 | [D9](#d9-figure-7-is-internally-inconsistent) | Figure 7 is internally inconsistent | paper | typo |
-| [D10](#d10-theorem-31-is-false-when-a-symbols-only-conflict-is-with-itself) | Theorem 3.1(1) is false when a symbol's only conflict is with itself | paper | the repaired grammar loses every tree using the symbol |
 
 ## Defects in the reference implementation
 
@@ -350,41 +349,6 @@ checking Figure 7 against the artefact will otherwise get a different automaton.
 The formalisation implements the exclusion and takes `--keep-trivial` to switch it off;
 with that flag the two implementations agree byte for byte, which is how
 `scripts/difftest.sh` compares them.
-
-### D10. Theorem 3.1 is false when a symbol's only conflict is with itself
-
-Take `S → S + S | S * S | (S) | x | y | z` (`test/grammars/arith.cfg`) and one rejected
-tree example, `Eg((PLUS,3), (PLUS,3), 2)`: `+` is not right-associative. There is no
-precedence conflict, so `(PLUS,3)` is alone in its member of `S_E`.
-
-If `M_to` is built only from the orders that contain two or more conflicting symbols, the
-last clause of Algorithm 3.1 —
-
-> **if** `i = size − 1 ∧ ∃ s ∈ ithSymbols, (s, _) ∈ O_a` **then** `O_tmp ← pushN(O_tmp, o+i+1, 1)` …
-
-— never fires, `O_p` stays `{0 ↦ everything}`, and `GenTA` emits
-
-```
-states e0
-finals e0
-trans e0 0 PLUS 3 S:e0 T:PLUS S:e1
-```
-
-naming a state `e₁` that does not exist. Nothing satisfies it, so every tree containing a
-`+` is rejected: 7 of the grammar's 15 trees at depth 3 survive, and `x + y` — which the
-user never excluded — is among the losses. That is `L_r ⊉ L_g \\ L⁻`, so Theorem 3.1(1)
-fails.
-
-**Suggested fix.** `S_C` in Section 3 is the set of symbols in a precedence **or an
-associativity** related conflict, and `S_E` its partition into maximal pairwise-conflicting
-subsets, so a symbol whose only conflict is with itself is a *singleton* member of `S_E`
-and belongs in `M_to`. §3.1.2 should say so explicitly, since the singletons are what make
-the `O_a` clause of Algorithm 3.1 fire. [`toMapOf`](../Greta/Learn.lean#L96) builds them;
-with the singleton included, `O_p` becomes `{0 ↦ everything, 1 ↦ everything but PLUS}`,
-13 of the 15 trees survive, and the two that do not are exactly the right-associative
-nestings. `testAssocOnly` in `Greta/Test.lean` is the regression test.
-
-`docs/proof-plan.md` lists this as `S2` among the strengthenings Theorem 3.1 needs.
 
 ### D9. Figure 7 is internally inconsistent
 

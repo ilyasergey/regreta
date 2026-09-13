@@ -90,9 +90,10 @@ by testing against the verified product construction.
 [`docs/proof-plan.md`](docs/proof-plan.md) sets out how to close these gaps: the shape
 lemmas about `GenTA`'s output that turn Lemma B.1 into arithmetic on levels, the
 specification of `LearnOaOp` that Theorem 3.1(1) needs, the bisimulations the three
-optimisations need — and the six strengthenings the constructions and the statements need
-before they can be proved at all. One of those is not optional: without it Theorem 3.1(1)
-is false on a three-line grammar with a single tree example.
+optimisations need — and the six side conditions Theorem 3.1 turns out to need. Four of
+them are hypotheses that Section 3's own definitions supply; two are genuine gaps, both
+about the cycle transitions that `HighToLow` introduces, and the published proof of
+Lemma B.1 concedes one of them in passing.
 
 ## Building
 
