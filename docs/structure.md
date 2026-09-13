@@ -27,6 +27,10 @@ numbering, and this note gives the corresponding section of the main body alongs
 | `Greta/Enumerate.lean` | bounded enumeration of accepted trees, used for language comparison |
 | `Greta/Test.lean` | the `selftest` suite |
 
+`Greta/Soundness.lean` also defines [`repairOnce`](../Greta/Soundness.lean#L122), one round
+of the repair loop of Figure 4, and `repairOnceSpec`, the same round with the verified
+product in place of Algorithm 3.3; `repairOnceSpec_correct` is Theorem 3.2 applied to it.
+
 ## Design decisions
 
 ### Acceptance is a computable function, not an inductive relation
@@ -83,11 +87,11 @@ states can only shrink the language.
 
 ### Symbol names
 
-A ranked symbol is `(id, name, rank)` (§2.2, Figure 5). Only `id` matters semantically — it identifies the
-production the symbol came from — but `name` is part of symbol equality in the reference
-implementation, so the formalisation reproduces the reference's choice of names (the
-first terminal of the right-hand side, or the empty string) rather than the paper's `δ`.
-This keeps the generated automata comparable byte for byte.
+A ranked symbol is `(id, name, rank)` (§2.2, Figure 5). Only `id` matters semantically —
+it identifies the production the symbol came from — but `name` is part of symbol equality
+in the reference implementation, so the formalisation reproduces the reference's choice of
+names (the first terminal of the right-hand side, or the empty string) rather than the
+paper's `δ`. This keeps the generated automata comparable byte for byte.
 
 ## Reading the main theorems
 
