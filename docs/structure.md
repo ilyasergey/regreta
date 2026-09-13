@@ -25,6 +25,7 @@ Definitions A.1 to A.10; the Lean source cites them by that numbering.
 | `Greta/Soundness.lean` | Theorem 3.1 as two statements ([`GenTASound₁`](../Greta/Soundness.lean#L52), [`GenTASound₂`](../Greta/Soundness.lean#L60)), Theorem 3.2 derived from them ([`greta_correct`](../Greta/Soundness.lean#L75)), the repair pipeline as run and as verified ([`repairOnce_lang`](../Greta/Soundness.lean#L157)) |
 | `Greta/GenTASpec.lean` | the shape of `A_r`; Theorem 3.1 proved ([`genTA_sound`](../Greta/GenTASpec.lean#L679)); Theorem 3.2 with Theorem 3.1 discharged ([`greta_correct_of_spec`](../Greta/GenTASpec.lean#L689)) |
 | `Greta/LearnSpec.lean` | Lemma B.2 ([`relayerOrder_ordersOf_above`](../Greta/LearnSpec.lean#L370), [`relayerOrder_replicates`](../Greta/LearnSpec.lean#L475)); the learner against `LearnedSpec`, `Fits` and `Covers`; Theorem 3.2 for the pipeline ([`repairOnceSpec_correct_pipeline`](../Greta/LearnSpec.lean#L1144)) |
+| `Greta/RefSound.lean` | Theorem 3.1 for the shipped construction ([`refGenTA_sound`](../Greta/RefSound.lean#L397)) and Theorem 3.2 with it ([`refGreta_correct_pipeline`](../Greta/RefSound.lean#L511)) |
 | `Greta/RefLearn.lean` | Algorithm 3.1 *as shipped*, the back-edges of `learn_ta`, and the restated Lemma B.2 ([`refGenTA_specReach`](../Greta/RefLearn.lean)) |
 | `Greta/Serialize.lean` | the text format shared with the OCaml driver |
 | `Greta/Enumerate.lean` | bounded enumeration of accepted trees, used for language comparison |
@@ -139,6 +140,8 @@ example rules out. [`GenTASound₁`](../Greta/Soundness.lean#L52) and [`GenTASou
 `L_r ⊇ L_g \ L⁻` and `L_r ∩ L⁻ = ∅`. The hypotheses are explained in
 [`divergences.md`](divergences.md); `Fits` is false whenever a production brackets its own
 nonterminal, so `genTA_sound₁` says nothing about such grammars ([§8](divergences.md#d8)).
+[`refGenTA_sound`](../Greta/RefSound.lean#L397) is the version that does: Theorem 3.1 for the
+automaton `learner.ml` builds, whose side conditions pass on the running example.
 `Greta/LearnSpec.lean` decides `LearnedSpec` and the other conditions on the input, and
 [`repairOnceSpec_correct_pipeline`](../Greta/LearnSpec.lean#L1144) is Theorem 3.2 for the
 pipeline of Figure 4 with them all discharged by the check.

@@ -9,6 +9,7 @@ Run with `lake exe greta selftest`.
 -/
 import Greta.Enumerate
 import Greta.RefLearn
+import Greta.RefSound
 
 namespace Greta
 namespace Test
@@ -516,6 +517,67 @@ def testTopoSort (r : Report) : IO Report := do
         (g.excludedLang neg t && !ar.langB t)
   return r
 
+/--
+**Theorem 3.1(1) holds for the learner Greta ships.**  On the grammar of Section 1 the
+published construction loses `x * (y + z)` and the shipped one keeps it, and all the side
+conditions of `refGreta_correct_pipeline` pass — so Theorem 3.2 is established for that
+grammar, by proof, for the algorithm the tool runs.  See `docs/divergences.md`, §8.
+-/
+def testShippedSound (r : Report) : IO Report := do
+  let g := bracketGrammar
+  let neg : List TreeExample :=
+    [ { top := sym! g 0, bot := sym! g 0, idx := 2 }
+    , { top := sym! g 1, bot := sym! g 1, idx := 2 }
+    , { top := sym! g 1, bot := sym! g 0, idx := 0 } ]
+  let rf := refLearned g neg true
+  let arRef := refGenTA g rf.1 rf.2.2 rf.2.1
+  let x : Tree := .node (sym! g 3) [.leaf "X"]
+  let y : Tree := .node (sym! g 4) [.leaf "Y"]
+  let z : Tree := .node (sym! g 5) [.leaf "Z"]
+  let star := fun a b => Tree.node (sym! g 1) [a, .leaf "STAR", b]
+  let plus := fun a b => Tree.node (sym! g 0) [a, .leaf "PLUS", b]
+  let paren := fun a => Tree.node (sym! g 2) [.leaf "LPAREN", a, .leaf "RPAREN"]
+  let mut r := r
+  r ← check r "the published side conditions fail" (!pipelineFullOK g neg true)
+  r ← check r "the shipped side conditions all pass" (refPipelineOK g neg true)
+  r ← check r "`RefFits` holds where `Fits` does not"
+        (refFitsB g neg true rf.1 rf.2.2 rf.2.1)
+  r ← check r "the shipped A_r keeps `x * (y + z)`" (arRef.langB (star x (paren (plus y z))))
+  r ← check r "and keeps `(y + z) * x`" (arRef.langB (star (paren (plus y z)) x))
+  return r
+
+/--
+**Theorem 3.1(1) also needs the examples to order each conflict group totally.**  With two
+of the six pairs of a four-operator group related, the stratification separates symbols no
+example related, and `x * x + x` is removed although nothing rejects it.  Adding the other
+four examples restores the theorem.  See `docs/divergences.md`, §10.
+-/
+def testTotalOrder (r : Report) : IO Report := do
+  let g := fourOpGrammar
+  let partial_ : List TreeExample :=
+    [ { top := sym! g 0, bot := sym! g 3, idx := 0 }
+    , { top := sym! g 2, bot := sym! g 1, idx := 0 } ]
+  let total : List TreeExample :=
+    [ { top := sym! g 2, bot := sym! g 1, idx := 0 }
+    , { top := sym! g 3, bot := sym! g 1, idx := 0 }
+    , { top := sym! g 0, bot := sym! g 1, idx := 0 }
+    , { top := sym! g 3, bot := sym! g 2, idx := 0 }
+    , { top := sym! g 0, bot := sym! g 2, idx := 0 }
+    , { top := sym! g 0, bot := sym! g 3, idx := 0 } ]
+  let x : Tree := .node (sym! g 4) [.leaf "X"]
+  let star := Tree.node (sym! g 1) [x, .leaf "STAR", x]
+  let t := Tree.node (sym! g 0) [star, .leaf "PLUS", x]
+  let rp := refLearned g partial_ true
+  let mut r := r
+  r ← check r "with a partial order `x * x + x` is excluded by nothing"
+        (g.repairedLang partial_ t)
+  r ← check r "yet the shipped A_r rejects it: Theorem 3.1(1) fails"
+        (!(refGenTA g rp.1 rp.2.2 rp.2.1).langB t)
+  r ← check r "and the side conditions report it" (!refPipelineOK g partial_ true)
+  r ← check r "with the group totally ordered they all pass"
+        (refPipelineOK g total true)
+  return r
+
 /-- The side conditions Theorem 3.2 needs hold for `dangling-else`. -/
 def testPipelineChecked (r : Report) : IO Report := do
   let g := cycleGrammar
@@ -542,6 +604,10 @@ def runAll : IO UInt32 := do
   r ← testBrackets r
   IO.println "linearising a conflict group"
   r ← testTopoSort r
+  IO.println "Theorem 3.1(1) for the shipped learner"
+  r ← testShippedSound r
+  IO.println "conflict groups must be totally ordered"
+  r ← testTotalOrder r
   IO.println "the checked side conditions"
   r ← testPipelineChecked r
   IO.println "randomised intersection"

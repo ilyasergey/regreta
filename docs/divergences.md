@@ -7,7 +7,7 @@ means in practice. Defects found in the OCaml code are catalogued separately in
 [`reference-defects.md`](reference-defects.md).
 
 It is written in three layers. [The verdict](#the-verdict) says in a line each what the
-nine differences are and what it would take to settle them; [the table](#the-nine-differences)
+ten differences are and what it would take to settle them; [the table](#the-ten-differences)
 puts each one beside the paper's claim and this development's; and the numbered sections
 after it give the detail, the witness, and the Lean. Every layer links to the next.
 
@@ -16,17 +16,20 @@ and the proofs of Lemmas B.1 and B.2 are in the supplementary material.
 
 ## The verdict
 
-Nine differences, in the order the paper builds the pipeline. Three ask for a change to an
-algorithm, one of them a single line. The rest are prose.
+Ten differences, in the order the paper builds the pipeline. Three ask for a change to an
+algorithm, one of them a single line; one is a hypothesis the paper never states. The rest
+are prose.
 
 **Do they invalidate the paper's general claims?** The approach is sound and the evaluation
 stands: the tool that was evaluated has neither serious defect in the form the paper prints,
 because it is Algorithm 3.1 *as printed* that loses bracketed parses, not the code that was
-run. What does not survive is the statement of Theorem 3.1. Part (1) is false for any
-grammar that brackets its own nonterminal, and the theorem as a whole holds only under the
-acyclicity restriction its own proof already sets aside. Neither is a matter of wording,
-and both are repairable: adopt the construction the code already uses, and state the
-restriction. Table 1's `I¹` ablation also measures a construction that is not
+run. What does not survive is the statement of Theorem 3.1. Part (1) is false as printed, for
+any grammar that brackets its own nonterminal and for any conflict group the examples order
+only partially; and the theorem as a whole holds only under the acyclicity restriction its
+own proof already sets aside. All three are repairable, and the repairs are carried out
+here: Theorem 3.1 is proved, in both halves, for the construction `learner.ml` uses, under
+hypotheses the tool checks — and they pass on the paper's running example and on its
+Section 1 grammar, where the published construction fails. Table 1's `I¹` ablation also measures a construction that is not
 language-preserving, though the default configuration it is compared against is.
 
 * **Ordering a conflict group.** The paper says each group is totally ordered, but never
@@ -45,10 +48,11 @@ language-preserving, though the default configuration it is compared against is.
 * **Brackets — needs an algorithm changed.** Algorithm 3.1 copies a bracketing production
   to every precedence level and keeps its contents at that level, so `x * (y + z)` is lost.
   Theorem 3.1(1) is false on the paper's own Section 1 grammar. [→ 8](#d8)
-  * *Here:* the witness is in the self-test, `Fits` is reported false on exactly these
-    grammars, and the shipped learner is formalised and shown to keep the parse.
-  * *Paper:* should replace the replication step with the back-edge construction the code
-    already uses, and reprove Lemma B.2 and Theorem 3.1(1) for it.
+  * *Here:* Theorem 3.1 is proved for the construction `learner.ml` uses instead, in both
+    halves, and Theorem 3.2 with it; the side conditions pass on the Section 1 grammar and
+    on the running example, where the published ones fail.
+  * *Paper:* should replace the replication step with the back-edge construction, and take
+    the proofs from [`Greta/RefSound.lean`](../Greta/RefSound.lean).
   * *Code:* no change; it is already right, and should not be moved towards the paper.
 
 * **Lemma B.2** is about Algorithm 3.1 as printed, not the learner that ships. [→ 4](#d4)
@@ -82,6 +86,17 @@ language-preserving, though the default configuration it is compared against is.
     each nonterminal of a production its own level.
   * *Code:* follows whichever the paper chooses.
 
+* **Conflict groups must be totally ordered — a hypothesis the paper never states.** If the
+  examples relate only some pairs of a group, the stratification separates symbols nothing
+  related, and a parse no example rejects is removed. [→ 10](#d10)
+  * *Here:* part of what `refPipelineOK` checks; on the four-operator witness, supplying the
+    four missing examples makes Theorem 3.1(1) hold.
+  * *Paper:* should say that `M_to`'s groups are totally ordered *by the examples*, not
+    merely totally ordered, and say what the tool does when they are not.
+  * *Code:* no change; `ensure_consistent` already rejects such input, and a commented-out
+    assertion in `form_total_order_among_op_symbols_from_same_group` states exactly this
+    count of pairs.
+
 * **Algorithm 3.3.** Its agreement with the textbook product was the one step taken on
   trust. [→ 5](#d5)
   * *Here:* proved, for all five settings of Table 1, under two decidable side conditions
@@ -94,25 +109,26 @@ The OCaml has two further defects of its own, in code the paper does not describ
 touch none of the theorems and are catalogued in
 [`reference-defects.md`](reference-defects.md).
 
-## The nine differences
+## The ten differences
 
 Each row links to the section that gives the detail.
 
 | | Paper | Here | In practice |
 | --- | --- | --- | --- |
 | <a id="d1"></a>[1](#1-theorem-31-needs-acyclicity) | Theorem 3.1 holds unconditionally | it holds when `HighToLow` reports nothing | **real restriction.** On a grammar with a cycle, one round of repair can leave a rejected tree in the language. The paper's proof excludes the case. |
-| <a id="d2"></a>[2](#2-algorithm-31s-inputs-get-a-specification) | `O_a`, `O_p` are whatever the earlier stages produce | [`LearnedSpec`](../Greta/GenTASpec.lean#L234), [`Fits`](../Greta/GenTASpec.lean#L482), [`Covers`](../Greta/GenTASpec.lean#L610) say what they must satisfy | bookkeeping. Implied by the definitions; one clause is easy to lose in an implementation. |
+| <a id="d2"></a>[2](#2-algorithm-31s-inputs-get-a-specification) | `O_a`, `O_p` are whatever the earlier stages produce | [`LearnedSpec`](../Greta/GenTASpec.lean#L234), [`Fits`](../Greta/GenTASpec.lean#L482), [`Covers`](../Greta/GenTASpec.lean#L610) say what they must satisfy, and the tool checks them | bookkeeping, except that `Fits` is *not* implied by the definitions: it is what fails in [8](#d8) and [10](#d10). |
 | <a id="d3"></a>[3](#3-lemma-b1-gains-a-child-position) | Lemma B.1 relates two symbols | it relates two symbols at a child position | the published lemma cannot cover associativity examples; the restated one does. |
 | <a id="d4"></a>[4](#4-lemma-b2-is-about-the-published-algorithm-31) | Lemma B.2 is about Greta | it is about Algorithm 3.1 as printed; the shipped learner gets a separate, reachability-flavoured restatement | the shipped learner is a different algorithm, formalised in [`Greta/RefLearn.lean`](../Greta/RefLearn.lean); on `arith` the two repair to different languages. |
 | <a id="d5"></a>[5](#5-theorem-32-is-about-the-product-construction) | Theorem 3.2 is about Algorithm 3.3's output | it is about the product construction, and Algorithm 3.3 is separately proved equal to it | resolved for the configuration Greta runs, which needs no side condition beyond duplicate-free final states. **Real defect in the `I¹` ablation:** with reachability off, merging can elect a non-accepting representative and the intersection loses trees. |
 | <a id="d6"></a>[6](#6-algorithm-32-applies-every-associativity-restriction) | `if ∃p, (s,p) ∈ O_a` | every such `p` is applied | pseudocode clarification; the reference already does this. |
 | <a id="d7"></a>[7](#7-figure-7-has-a-typo) | Figure 7's `(TINT,4)` row at `e2` | `TINT ident EQ e2` | typo. |
-| <a id="d8"></a>[8](#8-theorem-311-is-false-for-grammars-with-brackets) | Theorem 3.1(1) holds | it fails whenever a production brackets its own nonterminal | **real defect.** On the grammar of Section 1 the repaired grammar loses `x * (y + z)`. The shipped learner is not affected. |
+| <a id="d8"></a>[8](#8-theorem-311-is-false-for-grammars-with-brackets) | Theorem 3.1(1) holds | it fails whenever a production brackets its own nonterminal, and is proved for the shipped construction instead | **real defect.** The repair loses `x * (y + z)` on the grammar of Section 1. Resolved by proving Theorem 3.1 for `learner.ml`'s construction. |
 | <a id="d9"></a>[9](#9-linearising-a-conflict-group-needs-a-topological-sort) | `M_to`'s groups are "totally ordered" | they are linearised by Kahn's algorithm, which reports contradictory examples | **real defect if sorted by comparison.** A merge sort can drop a constraint it never tests; the reference detects the case and exits. |
+| <a id="d10"></a>[10](#10-theorem-311-needs-each-conflict-group-totally-ordered) | the groups of `M_to` are totally ordered | the examples must *make* them so | **missing hypothesis.** With two of six pairs given, `x * x + x` is removed although nothing rejects it. The reference rejects such input. |
 
 ## What is proved
 
-Five results carry the development, all in Lean with no `sorry` and no axioms beyond
+Six results carry the development, all in Lean with no `sorry` and no axioms beyond
 `propext`, `Classical.choice` and `Quot.sound`.
 
 [`CFG.toTA_correct`](../Greta/CFG.lean#L318) is Theorem A.10: the automaton built from a
@@ -142,6 +158,14 @@ optimised intersection Greta runs, recognises the same language as the product
 construction, so the paper's chain of correctness no longer has a link that rests on
 testing (Section 5). [`repairOnce_correct`](../Greta/Soundness.lean#L171) carries Theorem
 3.2 over to one round of repair as the tool actually runs it.
+
+[`refGenTA_sound`](../Greta/RefSound.lean#L397) is Theorem 3.1 for the automaton
+`Learner.learn_ta` builds, both halves, and
+[`refGreta_correct_pipeline`](../Greta/RefSound.lean#L511) is Theorem 3.2 for that pipeline,
+with every side condition discharged by a check on the input. This is the version of
+Theorem 3.1 that survives: statement (1) is false for the construction the paper prints
+([8](#d8)), and these checks pass on the paper's running example and on its Section 1
+grammar, where the published ones fail.
 
 ## 1. Theorem 3.1 needs acyclicity
 
@@ -178,7 +202,7 @@ S → T → (S + S) * S
 ```
 
 is accepted by `A_r`, is a parse tree of the grammar, and contains the rejected pattern.
-[`testCycle`](../Greta/Test.lean#L281) checks all three facts. The repaired grammar
+[`testCycle`](../Greta/Test.lean#L282) checks all three facts. The repaired grammar
 `lake exe greta repair` prints keeps the production `(e0,T) → (e0,S) STAR (e0,S)`, so one
 round of repair does not remove the ambiguity the user pointed at. What the outer loop of
 Figure 4 does next is outside the formalisation.
@@ -472,6 +496,25 @@ symbols, including pairs no parse tree can put in a parent/child relation. It is
 guarded by [`ChildAt`](../Greta/GenTASpec.lean#L474), which is what the proof of
 `genTA_sound₁` actually uses.
 
+**The resolution.** [`Greta/RefSound.lean`](../Greta/RefSound.lean) proves Theorem 3.1 for
+the shipped construction: [`refGenTA_sound₁`](../Greta/RefSound.lean#L366) is statement (1),
+[`refGenTA_sound₂`](../Greta/RefSound.lean#L230) statement (2), and
+[`refGreta_correct_pipeline`](../Greta/RefSound.lean#L511) is Theorem 3.2 for the whole
+pipeline with every side condition discharged by a check on the input. The proofs follow
+`Greta/GenTASpec.lean` step for step; only the fill function changes, and two things follow
+from that change.
+
+[`RefFits`](../Greta/RefSound.lean#L92) is `Fits` with `refOaFill` in place of `oaFill`, so a
+symbol with a back-edge demands its children at the order the back-edge points at. That is
+what makes statement (1) provable: `refFitsB` is `true` on the paper's running example and
+on `arith`, where `fitsB` is `false`.
+
+Statement (2) needs one condition more,
+[`SpecsAvoidTops`](../Greta/RefSound.lean#L54): no symbol that a rejected example names at
+the top carries a back-edge. It holds for a reason — the back-edges go to the symbols *no*
+conflict group holds, and the top of an example is always in a group — and it is decidable,
+so the tool checks it rather than assuming it.
+
 ## 9. Linearising a conflict group needs a topological sort
 
 Algorithm 3.1 takes `M_to` with each conflict group already "totally ordered from lowest to
@@ -491,6 +534,44 @@ them in base order, and the repaired grammar still admits the rejected nesting, 
 returns `none` when the constraints are cyclic, which is the case the reference detects in
 `Examples.form_total_order_among_op_symbols_from_same_group`, where an insertion sort checks
 each placement with `ensure_consistent` and exits on failure.
+
+## 10. Theorem 3.1(1) needs each conflict group totally ordered
+
+Algorithm 3.1 takes `M_to` with each conflict group "totally ordered from lowest to highest
+precedence". Read as a statement about the *list*, that is true of any list. Read as a
+statement about the *examples* — that they relate every pair of the group — it is a real
+hypothesis, and Theorem 3.1(1) needs it.
+
+Stratifying a group of `n` symbols puts them at `n` consecutive orders, and a symbol at a
+higher order can never appear beneath one at a lower order. If the examples relate only some
+pairs, the stratification separates symbols nothing related, and parses no example rejects
+are removed. [`test/grammars/four-ops.cfg`](../test/grammars/four-ops.cfg) is the witness:
+four operators, of whose six pairs the two examples of
+[`four-ops.ex`](../test/examples/four-ops.ex) relate two. The learned order is
+
+```
+STAR < MINUS < SLASH < PLUS
+```
+
+and `x * x + x` — a `STAR` directly beneath a `PLUS` — is removed, although the examples
+reject only a `SLASH` beneath a `PLUS` and a `STAR` beneath a `MINUS`. It is a parse tree of
+the grammar and it is not in `L⁻`, so Theorem 3.1(1) fails, on an acyclic grammar with no
+bracketing production. [`four-ops-total.ex`](../test/examples/four-ops-total.ex) adds the
+four missing examples; then `refPipelineOK` passes and the tree is excluded, as it should
+be. `testTotalOrder` checks both halves.
+
+This is not a defect in the algorithm. Stratification is what disambiguation *is*, and a
+tool cannot invent an order the user has not given. It is a hypothesis the paper states in a
+form that reads as vacuous. The reference implementation knows about it:
+`Examples.form_total_order_among_op_symbols_from_same_group` carries the assertion
+
+```ocaml
+(* assert (List.length pairs = _a_len * (_a_len - 1) / 2); *)
+```
+
+commented out, which says exactly that every pair of the group is related by an example, and
+its insertion sort exits when the examples are not consistent with a total order. The paper
+should state the hypothesis and say what the tool does without it.
 
 ## Representation choices
 

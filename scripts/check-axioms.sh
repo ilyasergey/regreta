@@ -27,6 +27,10 @@ import Greta
 #print axioms Greta.fits_of_check
 #print axioms Greta.genTA_sound₂_pipeline
 #print axioms Greta.repairOnceSpec_correct_pipeline
+#print axioms Greta.refGenTA_sound₁
+#print axioms Greta.refGenTA_sound₂
+#print axioms Greta.refGenTA_sound
+#print axioms Greta.refGreta_correct_pipeline
 #print axioms Greta.refRelayerFold_no_inversion
 #print axioms Greta.refLearnOaOp_specDominated
 #print axioms Greta.refGenTA_specReach

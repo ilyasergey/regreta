@@ -18,20 +18,24 @@ Figure 3, and that `GenTA` reproduces Figure 7 transition for transition, with t
 row at `e2` corrected as [`divergences.md`](divergences.md#7-figure-7-has-a-typo) explains.
 It also checks the translation theorem, [`CFG.toTA_correct`](../Greta/CFG.lean#L318), on concrete parse trees.
 
-**The witnesses of `divergences.md`.** [`testAssocOnly`](../Greta/Test.lean#L246) checks
+**The witnesses of `divergences.md`.** [`testAssocOnly`](../Greta/Test.lean#L247) checks
 that a symbol whose only conflict is with itself is still re-layered ([§2](divergences.md#d2));
-[`testCycle`](../Greta/Test.lean#L281) the cycle grammar against Theorem 3.1(2) ([§1](divergences.md#d1));
-[`testBrackets`](../Greta/Test.lean#L447) that `x * (y + z)` is kept by neither the published
+[`testCycle`](../Greta/Test.lean#L282) the cycle grammar against Theorem 3.1(2) ([§1](divergences.md#d1));
+[`testBrackets`](../Greta/Test.lean#L448) that `x * (y + z)` is kept by neither the published
 learner nor `Fits`, and is kept by the shipped one ([§8](divergences.md#d8));
-[`testTopoSort`](../Greta/Test.lean#L497) that the four-operator grammar's long-range
-constraint survives the linearisation ([§9](divergences.md#d9)); and
-[`testPipelineChecked`](../Greta/Test.lean#L520) that the checked side conditions reject the
-cycle witness. The `I¹` witness of [§5](divergences.md#d5) is not a test but a `#guard` in
+[`testTopoSort`](../Greta/Test.lean#L498) that the four-operator grammar's long-range
+constraint survives the linearisation ([§9](divergences.md#d9));
+[`testPipelineChecked`](../Greta/Test.lean#L582) that the checked side conditions reject the
+cycle witness; [`testShippedSound`](../Greta/Test.lean#L526) that Theorem 3.1(1) *does* hold
+for the construction `learner.ml` builds, on the grammar where the published one fails
+([§8](divergences.md#d8)); and [`testTotalOrder`](../Greta/Test.lean#L555) that a conflict
+group the examples order only partially breaks Theorem 3.1(1), and that supplying the four
+missing examples restores it ([§10](divergences.md#d10)). The `I¹` witness of [§5](divergences.md#d5) is not a test but a `#guard` in
 `Greta/IntersectSpec.lean`, evaluated when the file is compiled.
 
-**The learner as shipped.** [`testRefLearner`](../Greta/Test.lean#L347) compares
+**The learner as shipped.** [`testRefLearner`](../Greta/Test.lean#L348) compares
 `refLearnOaOp` with what `Learner.learn_op` prints, as described
-[below](#running-the-shipped-learner), and [`testRefBackEdge`](../Greta/Test.lean#L379)
+[below](#running-the-shipped-learner), and [`testRefBackEdge`](../Greta/Test.lean#L380)
 checks that `refGenTA` carries the back-edges of `learn_ta`.
 
 **The optimised intersection against the verified one.** For each of the five
